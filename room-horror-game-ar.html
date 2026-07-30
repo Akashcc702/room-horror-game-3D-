@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="kn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ಮನೆ ಭಯಾನಕ AR | Real Room Scan Horror</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0d09; --panel:#14170f; --rot:#8fae4a; --rot-dim:#4a5a2c;
+    --blood:#a8302a; --bone:#e7e3d2; --muted:#7a8070;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{width:100%; height:100%; overflow:hidden; background:var(--bg); color:var(--bone);
+    font-family:'IBM Plex Mono', monospace; -webkit-tap-highlight-color: transparent;}
+  .display{font-family:'Special Elite', cursive; letter-spacing:1px;}
+  .screen{position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:24px; z-index:5;
+    background:radial-gradient(ellipse at 50% 20%, rgba(143,174,74,0.06), transparent 60%), var(--bg);}
+  .hidden{display:none !important;}
+  .noise{position:fixed; inset:0; pointer-events:none; z-index:50; opacity:0.05; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+  .vignette{position:fixed; inset:0; pointer-events:none; z-index:49; box-shadow: inset 0 0 220px 60px rgba(0,0,0,0.85);}
+  h1.title{font-size:clamp(24px,6.5vw,48px); color:var(--rot); text-shadow:0 0 18px rgba(143,174,74,0.35), 2px 2px 0 #000; margin-bottom:10px;}
+  h2.subtitle{font-size:16px; color:var(--bone); margin-bottom:14px;}
+  p.sub{color:var(--muted); max-width:540px; line-height:1.7; font-size:13.5px; margin-bottom:20px;}
+  .note{color:var(--rot); font-size:12px; margin-top:-8px; margin-bottom:16px;}
+  .note.warn{color:var(--blood);}
+  button{font-family:'IBM Plex Mono', monospace; font-weight:600; background:var(--rot-dim); color:var(--bone);
+    border:1px solid var(--rot); padding:14px 26px; font-size:14px; letter-spacing:0.5px; cursor:pointer;
+    border-radius:2px; transition:all .15s ease;}
+  button:hover{background:var(--rot); color:#0b0d09;}
+  button:disabled{opacity:0.3; cursor:not-allowed;}
+  button.secondary{background:transparent; color:var(--muted); border-color:var(--muted);}
+  button.small{padding:8px 14px; font-size:12px;}
+  .btn-row{display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-bottom:8px;}
+
+  /* ---- capture (photo) screen ---- */
+  #screen-capture{padding:0; justify-content:flex-start;}
+  #video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1; filter:contrast(1.05) saturate(0.9);}
+  .cap-top{position:relative; z-index:3; width:100%; padding:16px 16px 0 16px; display:flex; flex-direction:column; align-items:center;}
+  .steps-dots{display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; justify-content:center; max-width:90vw;}
+  .dot{width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.2); border:1px solid var(--rot-dim);}
+  .dot.done{background:var(--rot);}
+  .dot.active{background:var(--bone); box-shadow:0 0 8px var(--bone);}
+  .direction-badge{background:rgba(11,13,9,0.72); border:1px solid var(--rot); padding:10px 20px; border-radius:4px; margin-top:12px; text-align:center;}
+  .direction-badge .arrow{font-size:30px; line-height:1; color:var(--rot); display:block;}
+  .direction-badge .dname{font-size:14px; margin-top:4px; letter-spacing:1px;}
+  #minimap{position:absolute; top:14px; right:14px; z-index:4; background:rgba(11,13,9,0.75); border:1px solid var(--rot-dim); border-radius:4px;}
+  .cap-bottom{position:absolute; bottom:0; left:0; right:0; z-index:3; display:flex; flex-direction:column; align-items:center; gap:10px;
+    padding:18px 16px 26px 16px; background:linear-gradient(to top, rgba(0,0,0,0.75), transparent);}
+  .shutter{width:70px; height:70px; border-radius:50%; background:var(--bone); border:5px solid var(--rot-dim); cursor:pointer;}
+  .shutter:active{transform:scale(0.92);}
+  .cap-hint{font-size:12px; color:var(--muted); max-width:340px; text-align:center;}
+  .frame-guide{position:absolute; inset:0; z-index:2; pointer-events:none; border:2px dashed rgba(143,174,74,0.35); margin:56px 22px 160px 22px;}
+
+  /* ---- AR overlay ---- */
+  #arOverlay{position:fixed; inset:0; z-index:60; pointer-events:none;}
+  #arOverlay.active{pointer-events:none;}
+  .ar-top{position:absolute; top:16px; left:16px; right:16px; text-align:center; pointer-events:none;}
+  .ar-badge{display:inline-block; background:rgba(11,13,9,0.75); border:1px solid var(--rot); padding:10px 16px; border-radius:4px; font-size:12.5px; line-height:1.5; max-width:90vw;}
+  .ar-bottom{position:absolute; bottom:24px; left:0; right:0; display:flex; justify-content:center; gap:14px; pointer-events:auto;}
+  .ar-count{position:absolute; top:90px; left:50%; transform:translateX(-50%); background:rgba(11,13,9,0.75); border:1px solid var(--rot-dim); padding:6px 14px; border-radius:20px; font-size:13px;}
+
+  /* ---- height slider screen ---- */
+  .height-row{display:flex; align-items:center; gap:14px; margin:14px 0 26px 0;}
+  #heightSlider{width:220px;}
+  #heightVal{font-size:20px; color:var(--rot); min-width:70px; display:inline-block;}
+
+  /* ---- game hud (reused) ---- */
+  #gameCanvas{position:fixed; inset:0; z-index:1; display:block;}
+  #hud{position:fixed; inset:0; z-index:10; pointer-events:none;}
+  .crosshair{position:absolute; top:50%; left:50%; width:6px; height:6px; margin:-3px 0 0 -3px; border-radius:50%; background:rgba(231,227,210,0.8);}
+  .hud-top{position:absolute; top:16px; left:16px; right:16px; display:flex; justify-content:space-between; align-items:flex-start; font-size:13px;}
+  .hud-box{background:rgba(11,13,9,0.55); border:1px solid var(--rot-dim); padding:8px 14px; border-radius:3px;}
+  .keys-row{display:flex; gap:6px; margin-top:4px;}
+  .key-icon{width:12px; height:12px; background:var(--rot-dim); border:1px solid var(--rot); border-radius:2px;}
+  .key-icon.got{background:var(--rot); box-shadow:0 0 6px var(--rot);}
+  .stamina-wrap{width:140px; height:8px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden; margin-top:6px;}
+  .stamina-bar{height:100%; background:var(--rot); width:100%; transition:width .1s linear;}
+  .hint-bottom{position:absolute; bottom:22px; left:50%; transform:translateX(-50%); font-size:12px; color:var(--bone);
+    background:rgba(11,13,9,0.6); padding:8px 16px; border-radius:3px; border:1px solid var(--rot-dim); text-align:center; max-width:80vw;}
+  .danger-flash{position:fixed; inset:0; z-index:20; pointer-events:none; background:rgba(168,48,42,0); transition:background .2s ease;}
+  #lockOverlay{position:fixed; inset:0; z-index:15; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,0.4); cursor:pointer; text-align:center; padding:20px;}
+  #lockOverlay p{font-size:14px; color:var(--bone); max-width:340px;}
+  .joy{position:fixed; z-index:14; bottom:26px; left:26px; width:120px; height:120px; border-radius:50%;
+    border:2px solid var(--rot-dim); background:rgba(20,23,15,0.35); touch-action:none;}
+  .joy-stick{position:absolute; width:50px; height:50px; border-radius:50%; background:rgba(143,174,74,0.45); top:35px; left:35px; border:1px solid var(--rot);}
+  .mobile-look{position:fixed; z-index:13; inset:0; touch-action:none;}
+  .sprint-btn{position:fixed; z-index:14; bottom:26px; right:26px; width:78px; height:78px; border-radius:50%;
+    border:2px solid var(--rot); background:rgba(20,23,15,0.5); color:var(--bone); font-size:11px; letter-spacing:1px; touch-action:none;}
+  .interact-btn{position:fixed; z-index:14; bottom:120px; right:30px; width:64px; height:64px; border-radius:50%;
+    border:2px solid var(--rot); background:rgba(20,23,15,0.5); color:var(--bone); font-size:12px; touch-action:none;}
+  @media (min-width:900px){ .joy,.mobile-look,.sprint-btn,.interact-btn{display:none;} }
+</style>
+</head>
+<body>
+
+<div class="noise"></div>
+<div class="vignette"></div>
+<div class="danger-flash" id="dangerFlash"></div>
+
+<!-- ============ INTRO ============ -->
+<div class="screen" id="screen-intro">
+  <h1 class="title display">ಮನೆ ಭಯಾನಕ — REAL SCAN</h1>
+  <p class="sub">ನಿಮ್ಮ ನಿಜವಾದ ಕೋಣೆಯನ್ನು <b>AR ಮೂಲಕ ನಿಜವಾದ ಅಳತೆಯಲ್ಲಿ (real-world scale) scan</b> ಮಾಡಿ, ಅದೇ ಆಕಾರದ ಕೋಣೆಯೊಳಗೆ Granny ಥರದ ಹಾರರ್ ಗೇಮ್ ಆಡಿ. ಗೋಡೆಗಳ ಫೋಟೋನೂ ತೆಗೆದು ಅದೇ ಗೋಡೆಗಳ ಮೇಲೆ ಹಾಕಲಾಗುತ್ತೆ.</p>
+  <div class="btn-row">
+    <button id="btnStartAR">📱 AR SCAN (Real Room)</button>
+  </div>
+  <div class="note" id="arNote">AR support ಪರೀಕ್ಷಿಸುತ್ತಿದೆ...</div>
+  <div class="btn-row">
+    <button class="secondary" id="btnStartCapture">📷 Quick Box Room (AR ಇಲ್ಲದೆ)</button>
+    <button class="secondary" id="btnSkipDemo">🎮 DEMO ಆಡು</button>
+  </div>
+</div>
+
+<!-- ============ AR SCAN INSTRUCTIONS ============ -->
+<div class="screen hidden" id="screen-ar-intro">
+  <h2 class="subtitle display" style="font-size:22px; color:var(--rot);">ಕೋಣೆ AR SCAN ಮಾಡುವ ವಿಧಾನ</h2>
+  <p class="sub">
+    1. "AR ಶುರು ಮಾಡು" ಒತ್ತಿ, phone ಅನ್ನು ನೆಲದ ಕಡೆ ತೋರಿಸಿ ನಿಧಾನ ಆಡಿಸಿ (AR tracking ಸಿಗಲು).<br>
+    2. ಕೋಣೆಯ ಪ್ರತಿ <b>ಮೂಲೆಯ (corner)</b> ಬಳಿ ನಿಂತು, ನೆಲದ ಮೇಲಿನ ಹಸಿರು ರಿಂಗ್ ಆ ಮೂಲೆಯ ಮೇಲೆ ಬಂದಾಗ <b>ಸ್ಕ್ರೀನ್ ಟ್ಯಾಪ್</b> ಮಾಡಿ.<br>
+    3. ಗೋಡೆ ಗೋಡೆಯಾಗಿ ಸುತ್ತಲೂ ನಡೆಯುತ್ತಾ ಎಲ್ಲಾ ಮೂಲೆ ಟ್ಯಾಪ್ ಮಾಡಿ.<br>
+    4. ಕೊನೆಗೆ ಮೊದಲ ಮೂಲೆಯ ಹತ್ತಿರ ವಾಪಸ್ ಬಂದು ಟ್ಯಾಪ್ ಮಾಡಿದರೆ ಕೋಣೆ ತಾನಾಗಿ ಮುಚ್ಚುತ್ತೆ (auto-close).
+  </p>
+  <div class="btn-row">
+    <button id="btnEnterAR">AR ಶುರು ಮಾಡು</button>
+    <button class="secondary" id="btnBackFromARIntro">ವಾಪಸ್</button>
+  </div>
+</div>
+
+<!-- AR dom-overlay (visible only during live AR session) -->
+<div id="arOverlay" class="hidden">
+  <div class="ar-top">
+    <div class="ar-badge">ಮೂಲೆಗಳನ್ನು ಟ್ಯಾಪ್ ಮಾಡಿ ಸುತ್ತಿ ಬನ್ನಿ. ಮೊದಲ ಮೂಲೆ ಹತ್ತಿರ ಟ್ಯಾಪ್ ಮಾಡಿ ಮುಗಿಸಿ.</div>
+  </div>
+  <div class="ar-count" id="arCount">0 ಮೂಲೆಗಳು</div>
+  <div class="ar-bottom">
+    <button class="small" id="btnFinishAR" disabled>✓ ಕೋಣೆ ಮುಗಿಸಿ</button>
+    <button class="small secondary" id="btnCancelAR">✕ ರದ್ದು</button>
+  </div>
+</div>
+
+<!-- ============ HEIGHT CONFIRM ============ -->
+<div class="screen hidden" id="screen-height">
+  <h2 class="subtitle display" style="font-size:22px; color:var(--rot);">ಕೋಣೆಯ ಎತ್ತರ (ceiling height)</h2>
+  <p class="sub">ಅಂದಾಜು ಎತ್ತರ ಆಯ್ಕೆ ಮಾಡಿ (ಸಾಮಾನ್ಯ ಕೋಣೆ ~2.7m).</p>
+  <div class="height-row">
+    <input type="range" id="heightSlider" min="2.2" max="4.0" step="0.1" value="2.7">
+    <span id="heightVal">2.7 m</span>
+  </div>
+  <div class="btn-row">
+    <button id="btnConfirmHeight">ಮುಂದೆ (ಗೋಡೆ ಫೋಟೋ)</button>
+  </div>
+</div>
+
+<!-- ============ CAPTURE (photo) ============ -->
+<div class="screen hidden" id="screen-capture">
+  <video id="video" autoplay playsinline muted></video>
+  <div class="frame-guide"></div>
+  <canvas id="minimap" width="120" height="120" class="hidden"></canvas>
+  <div class="cap-top">
+    <div class="steps-dots" id="stepsDots"></div>
+    <div class="direction-badge">
+      <span class="arrow" id="dirArrow">↑</span>
+      <span class="dname" id="dirName">FRONT ಗೋಡೆ</span>
+    </div>
+  </div>
+  <div class="cap-bottom">
+    <div class="cap-hint" id="capHint">ಫೋನ್ ಅನ್ನು ಗೋಡೆಯ ಕಡೆ ತೋರಿಸಿ, ನಂತರ ಶಟರ್ ಒತ್ತಿ.</div>
+    <div class="shutter" id="btnShutter"></div>
+  </div>
+</div>
+<canvas id="captureCanvas" class="hidden"></canvas>
+
+<!-- ============ BUILDING ============ -->
+<div class="screen hidden" id="screen-building">
+  <h1 class="title display" style="font-size:24px;">ಕೋಣೆ ಕಟ್ಟುತ್ತಿದೆ...</h1>
+  <p class="sub" id="buildMsg">ನಿಮ್ಮ scan + ಫೋಟೋಗಳಿಂದ real-shape 3D world ತಯಾರಿಸುತ್ತಿದೆ.</p>
+</div>
+
+<!-- ============ GAME ============ -->
+<canvas id="gameCanvas" class="hidden"></canvas>
+<div id="hud" class="hidden">
+  <div class="crosshair"></div>
+  <div class="hud-top">
+    <div class="hud-box"><div>🔑 KEYS</div><div class="keys-row" id="keysRow"></div></div>
+    <div class="hud-box"><div>STAMINA</div><div class="stamina-wrap"><div class="stamina-bar" id="staminaBar"></div></div></div>
+  </div>
+  <div class="hint-bottom" id="hintBottom">WASD - ನಡೆ | Mouse - ನೋಡು | Shift - ಓಡು | E - ಅಡಗು/ಬಾಗಿಲು</div>
+</div>
+<div id="lockOverlay" class="hidden"><p>ಆಡಲು ಕ್ಲಿಕ್ ಮಾಡಿ (mouse look lock ಆಗುತ್ತದೆ)<br><span style="color:var(--rot)">ESC ಒತ್ತಿ ಬಿಡಿಸಲು</span></p></div>
+<div class="joy hidden" id="joy"><div class="joy-stick" id="joyStick"></div></div>
+<div class="mobile-look hidden" id="mobileLook"></div>
+<button class="sprint-btn hidden" id="sprintBtn">RUN</button>
+<button class="interact-btn hidden" id="interactBtn">E</button>
+
+<!-- ============ GAME OVER / WIN ============ -->
+<div class="screen hidden" id="screen-over">
+  <h1 class="title display" style="color:var(--blood);">ಅವಳು ನಿನ್ನ ಹಿಡಿದಳು...</h1>
+  <p class="sub">GRANNY GOT YOU. ಮತ್ತೊಮ್ಮೆ ಪ್ರಯತ್ನಿಸಿ.</p>
+  <div class="btn-row">
+    <button id="btnRetry">ಮತ್ತೆ ಆಡು</button>
+    <button class="secondary" id="btnHome1">ಹೊಸ ಕೋಣೆ ಸ್ಕ್ಯಾನ್ ಮಾಡು</button>
+  </div>
+</div>
+<div class="screen hidden" id="screen-win">
+  <h1 class="title display" style="color:var(--rot);">ನೀವು ಪಾರಾದಿರಿ!</h1>
+  <p class="sub">ಎಲ್ಲಾ ಕೀಗಳನ್ನು ಹುಡುಕಿ ಬಾಗಿಲಿನಿಂದ ತಪ್ಪಿಸಿಕೊಂಡಿರಿ. 🎉</p>
+  <div class="btn-row">
+    <button id="btnRetry2">ಮತ್ತೆ ಆಡು</button>
+    <button class="secondary" id="btnHome2">ಹೊಸ ಕೋಣೆ ಸ್ಕ್ಯಾನ್ ಮಾಡು</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* =========================================================================
+   ROOM HORROR — AR EDITION
+   Real-world room scanning via WebXR hit-test (Android Chrome / ARCore),
+   guided per-wall photo capture, then a Granny-style chase/escape horror
+   game built inside the TRUE shape & scale of the scanned room.
+   Falls back to a quick guessed "box room" (old method) if AR isn't
+   available on the device/browser. Single file, no build step.
+   ========================================================================= */
+
+const $ = (id) => document.getElementById(id);
+const show = (el) => el.classList.remove('hidden');
+const hide = (el) => el.classList.add('hidden');
+function rand(a,b){ return a + Math.random()*(b-a); }
+
+let audioCtx = null;
+function beep(freq=440, dur=0.12, type='sine', vol=0.05){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq; g.gain.value = vol;
+    o.connect(g); g.connect(audioCtx.destination); o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.stop(audioCtx.currentTime + dur);
+  }catch(e){}
+}
+
+// ---------------------------------------------------------------------
+// mode/state
+// ---------------------------------------------------------------------
+let roomMode = 'ar'; // 'ar' | 'box'
+let scanPoints = [];       // [{x,z}, ...] real-world meters, AR mode only
+let roomHeight = 2.7;
+let room = { w: 14, h: 3.4, d: 12 }; // box mode only
+let capturedImages = {};   // key -> dataURL
+let captureSteps = [];     // dynamic list for current mode
+let stepIndex = 0;
+let mediaStream = null;
+
+// ---------------------------------------------------------------------
+// AR SUPPORT CHECK
+// ---------------------------------------------------------------------
+(async function checkAR(){
+  const noteEl = $('arNote');
+  if(navigator.xr && navigator.xr.isSessionSupported){
+    try{
+      const ok = await navigator.xr.isSessionSupported('immersive-ar');
+      if(ok){
+        noteEl.textContent = 'ಈ ಡಿವೈಸ್ AR ಸಪೋರ್ಟ್ ಮಾಡುತ್ತೆ ✔ (Android Chrome + ARCore ಬೇಕು)';
+      } else {
+        noteEl.textContent = 'ಈ ಡಿವೈಸ್/ಬ್ರೌಸರ್‌ನಲ್ಲಿ AR ಇಲ್ಲ — Quick Box Room ಬಳಸಿ.';
+        noteEl.classList.add('warn');
+        $('btnStartAR').disabled = true;
+      }
+    }catch(e){
+      noteEl.textContent = 'AR ಪರೀಕ್ಷೆ ಆಗಲಿಲ್ಲ — Quick Box Room ಬಳಸಿ.';
+      noteEl.classList.add('warn');
+      $('btnStartAR').disabled = true;
+    }
+  } else {
+    noteEl.textContent = 'ಈ ಬ್ರೌಸರ್ WebXR ಸಪೋರ್ಟ್ ಮಾಡಲ್ಲ (Android Chrome ಬಳಸಿ) — Quick Box Room ಬಳಸಿ.';
+    noteEl.classList.add('warn');
+    $('btnStartAR').disabled = true;
+  }
+})();
+
+// ---------------------------------------------------------------------
+// THREE.JS core (shared by AR-scan phase and the game)
+// ---------------------------------------------------------------------
+let renderer, scene, camera, threeInitialized = false;
+function initThreeOnce(){
+  if(threeInitialized) return;
+  threeInitialized = true;
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(72, window.innerWidth/window.innerHeight, 0.05, 100);
+  renderer = new THREE.WebGLRenderer({canvas: $('gameCanvas'), antialias:true, alpha:true});
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setClearColor(0x000000, 0);
+  window.addEventListener('resize', onResize);
+}
+function onResize(){
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// ---------------------------------------------------------------------
+// AR SCAN PHASE (WebXR hit-test)
+// ---------------------------------------------------------------------
+let xrSession = null, hitTestSource = null, xrRefSpace = null;
+let reticle, markerGroup, lineObj;
+
+$('btnStartAR').addEventListener('click', ()=>{
+  hide($('screen-intro')); show($('screen-ar-intro'));
+});
+$('btnBackFromARIntro').addEventListener('click', ()=>{
+  hide($('screen-ar-intro')); show($('screen-intro'));
+});
+$('btnEnterAR').addEventListener('click', startARScan);
+$('btnCancelAR').addEventListener('click', ()=>{ if(xrSession) xrSession.end(); });
+$('btnFinishAR').addEventListener('click', ()=>{ if(xrSession) finalizeScan(); });
+
+async function startARScan(){
+  roomMode = 'ar';
+  initThreeOnce();
+  scanPoints = [];
+  $('arCount').textContent = '0 ಮೂಲೆಗಳು';
+  $('btnFinishAR').disabled = true;
+
+  reticle = new THREE.Mesh(
+    new THREE.RingGeometry(0.09,0.12,32).rotateX(-Math.PI/2),
+    new THREE.MeshBasicMaterial({color:0x8fae4a})
+  );
+  reticle.visible = false;
+  scene.add(reticle);
+
+  markerGroup = new THREE.Group();
+  scene.add(markerGroup);
+  lineObj = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({color:0x8fae4a}));
+  scene.add(lineObj);
+
+  try{
+    xrSession = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['hit-test'],
+      optionalFeatures: ['dom-overlay', 'local-floor'],
+      domOverlay: { root: $('arOverlay') }
+    });
+  }catch(e){
+    alert('AR session ಶುರು ಆಗಲಿಲ್ಲ. Quick Box Room ಬಳಸಿ.');
+    hide($('screen-ar-intro')); show($('screen-intro'));
+    return;
+  }
+
+  hide($('screen-ar-intro'));
+  show($('gameCanvas'));
+  show($('arOverlay'));
+  renderer.xr.enabled = true;
+  await renderer.xr.setSession(xrSession);
+
+  const viewerSpace = await xrSession.requestReferenceSpace('viewer');
+  hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+  try{
+    xrRefSpace = await xrSession.requestReferenceSpace('local-floor');
+  }catch(e){
+    xrRefSpace = await xrSession.requestReferenceSpace('local');
+  }
+  renderer.xr.setReferenceSpaceType && renderer.xr.setReferenceSpaceType('local-floor');
+
+  xrSession.addEventListener('select', onARSelect);
+  xrSession.addEventListener('end', onARSessionEnd);
+
+  renderer.setAnimationLoop(arRenderLoop);
+}
+
+let lastHitPose = null;
+function arRenderLoop(timestamp, frame){
+  if(frame && hitTestSource){
+    const results = frame.getHitTestResults(hitTestSource);
+    if(results.length > 0){
+      const pose = results[0].getPose(xrRefSpace);
+      lastHitPose = pose;
+      reticle.visible = true;
+      reticle.matrix.fromArray(pose.transform.matrix);
+      reticle.matrix.decompose(reticle.position, reticle.quaternion, reticle.scale);
+    } else {
+      reticle.visible = false;
+      lastHitPose = null;
+    }
+  }
+  renderer.render(scene, camera);
+}
+
+function addMarker(x,z){
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.05,10,10), new THREE.MeshBasicMaterial({color:0x8fae4a}));
+  dot.position.set(x,0.02,z);
+  markerGroup.add(dot);
+  const positions = [];
+  scanPoints.forEach(p=> positions.push(p.x,0.02,p.z));
+  lineObj.geometry.setFromPoints(scanPoints.map(p=>new THREE.Vector3(p.x,0.02,p.z)));
+}
+
+function onARSelect(){
+  if(!reticle.visible || !lastHitPose) return;
+  const p = reticle.position;
+  // auto-close if near first point
+  if(scanPoints.length >= 3){
+    const first = scanPoints[0];
+    const d = Math.hypot(p.x-first.x, p.z-first.z);
+    if(d < 0.5){
+      beep(700,0.15,'square',0.05);
+      finalizeScan();
+      return;
+    }
+  }
+  scanPoints.push({x:p.x, z:p.z});
+  addMarker(p.x, p.z);
+  beep(500,0.08,'square',0.04);
+  $('arCount').textContent = scanPoints.length + ' ಮೂಲೆಗಳು';
+  $('btnFinishAR').disabled = scanPoints.length < 3;
+}
+
+function finalizeScan(){
+  if(scanPoints.length < 3){
+    alert('ಕನಿಷ್ಠ 3 ಮೂಲೆಗಳಾದರೂ ಟ್ಯಾಪ್ ಮಾಡಿ.');
+    return;
+  }
+  if(xrSession) xrSession.end();
+}
+
+function onARSessionEnd(){
+  renderer.setAnimationLoop(null);
+  hide($('arOverlay'));
+  hide($('gameCanvas'));
+  if(hitTestSource){ hitTestSource.cancel && hitTestSource.cancel(); hitTestSource = null; }
+  xrSession = null;
+  // clean helper meshes; scanPoints (plain data) survive
+  if(reticle) scene.remove(reticle);
+  if(markerGroup) scene.remove(markerGroup);
+  if(lineObj) scene.remove(lineObj);
+
+  if(scanPoints.length >= 3){
+    proceedToHeightScreen();
+  } else {
+    show($('screen-intro'));
+  }
+}
+
+// ---------------------------------------------------------------------
+// HEIGHT CONFIRM
+// ---------------------------------------------------------------------
+function proceedToHeightScreen(){
+  show($('screen-height'));
+  $('heightSlider').value = 2.7;
+  $('heightVal').textContent = '2.7 m';
+}
+$('heightSlider').addEventListener('input', (e)=>{
+  $('heightVal').textContent = parseFloat(e.target.value).toFixed(1) + ' m';
+});
+$('btnConfirmHeight').addEventListener('click', ()=>{
+  roomHeight = parseFloat($('heightSlider').value);
+  hide($('screen-height'));
+  startWallPhotoCapture();
+});
+
+// ---------------------------------------------------------------------
+// PHOTO CAPTURE (generalized: box-mode 6 steps, ar-mode N walls+floor+ceiling)
+// ---------------------------------------------------------------------
+const BOX_DIRECTIONS = [
+  {key:'front',  arrow:'↑', name:'FRONT ಗೋಡೆ',  hint:'ಫೋನ್ ಅನ್ನು ಮುಂಭಾಗದ ಗೋಡೆಯ ಕಡೆ ತೋರಿಸಿ.'},
+  {key:'right',  arrow:'→', name:'ಬಲ ಗೋಡೆ (RIGHT)', hint:'ಬಲಕ್ಕೆ ತಿರುಗಿ, ಬಲಭಾಗದ ಗೋಡೆ ತೋರಿಸಿ.'},
+  {key:'back',   arrow:'↓', name:'ಹಿಂಭಾಗ (BACK)',   hint:'ಹಿಂದಕ್ಕೆ ತಿರುಗಿ, ಹಿಂಭಾಗದ ಗೋಡೆ ತೋರಿಸಿ.'},
+  {key:'left',   arrow:'←', name:'ಎಡ ಗೋಡೆ (LEFT)',  hint:'ಎಡಕ್ಕೆ ತಿರುಗಿ, ಎಡಭಾಗದ ಗೋಡೆ ತೋರಿಸಿ.'},
+  {key:'floor',  arrow:'⤓', name:'ನೆಲ (FLOOR)',     hint:'ಫೋನ್ ಅನ್ನು ಕೆಳಗೆ ನೆಲದ ಕಡೆ ತೋರಿಸಿ.'},
+  {key:'ceiling',arrow:'⤒', name:'ಚಾವಣಿ (CEILING)', hint:'ಫೋನ್ ಅನ್ನು ಮೇಲೆ ಚಾವಣಿಯ ಕಡೆ ತೋರಿಸಿ.'},
+];
+
+function buildCaptureStepsForAR(){
+  const steps = scanPoints.map((_,i)=>({
+    key:'wall'+i, arrow:'🧱', name:'ಗೋಡೆ '+(i+1)+' / '+scanPoints.length,
+    hint:'ಈ ಗೋಡೆಯ ಎದುರು ನಿಂತು ಫೋಟೋ ತೆಗೆಯಿರಿ (mini-map ಕೆಂಪು ಗೆರೆ ನೋಡಿ).', wallIndex:i
+  }));
+  steps.push({key:'floor', arrow:'⤓', name:'ನೆಲ (FLOOR)', hint:'ಫೋನ್ ಅನ್ನು ಕೆಳಗೆ ನೆಲದ ಕಡೆ ತೋರಿಸಿ.'});
+  steps.push({key:'ceiling', arrow:'⤒', name:'ಚಾವಣಿ (CEILING)', hint:'ಫೋನ್ ಅನ್ನು ಮೇಲೆ ಚಾವಣಿಯ ಕಡೆ ತೋರಿಸಿ.'});
+  return steps;
+}
+
+function placeholderTexture(label, tint){
+  const c = document.createElement('canvas'); c.width=512; c.height=512;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = tint; ctx.fillRect(0,0,512,512);
+  for(let i=0;i<40;i++){
+    ctx.fillStyle = 'rgba(0,0,0,'+rand(0.03,0.12)+')';
+    ctx.fillRect(rand(0,512), rand(0,512), rand(20,120), rand(20,120));
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '26px monospace';
+  ctx.fillText(label, 20, 460);
+  return c.toDataURL();
+}
+
+function buildStepsDots(){
+  const wrap = $('stepsDots'); wrap.innerHTML = '';
+  captureSteps.forEach((d,i)=>{
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i < stepIndex ? ' done' : (i===stepIndex ? ' active' : ''));
+    wrap.appendChild(dot);
+  });
+}
+
+function drawMinimap(highlightWallIndex){
+  const canvas = $('minimap');
+  if(roomMode !== 'ar' || scanPoints.length < 3){ hide(canvas); return; }
+  show(canvas);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,120,120);
+  const xs = scanPoints.map(p=>p.x), zs = scanPoints.map(p=>p.z);
+  const minX=Math.min(...xs), maxX=Math.max(...xs), minZ=Math.min(...zs), maxZ=Math.max(...zs);
+  const spanX = Math.max(0.5,maxX-minX), spanZ = Math.max(0.5,maxZ-minZ);
+  const pad = 16, size = 120 - pad*2;
+  const scale = Math.min(size/spanX, size/spanZ);
+  const toCanvas = (p)=>({
+    x: pad + (p.x-minX)*scale + (size-spanX*scale)/2,
+    y: pad + (p.z-minZ)*scale + (size-spanZ*scale)/2
+  });
+  ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(143,174,74,0.6)';
+  ctx.beginPath();
+  scanPoints.forEach((p,i)=>{ const c=toCanvas(p); if(i===0) ctx.moveTo(c.x,c.y); else ctx.lineTo(c.x,c.y); });
+  ctx.closePath(); ctx.stroke();
+  if(highlightWallIndex !== undefined && highlightWallIndex !== null){
+    const A = toCanvas(scanPoints[highlightWallIndex]);
+    const B = toCanvas(scanPoints[(highlightWallIndex+1)%scanPoints.length]);
+    ctx.strokeStyle = '#a8302a'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+  }
+  const start = toCanvas(scanPoints[0]);
+  ctx.fillStyle = '#e7e3d2'; ctx.beginPath(); ctx.arc(start.x,start.y,3,0,7); ctx.fill();
+}
+
+function showCurrentDirection(){
+  buildStepsDots();
+  const d = captureSteps[stepIndex];
+  $('dirArrow').textContent = d.arrow;
+  $('dirName').textContent = d.name;
+  $('capHint').textContent = d.hint;
+  drawMinimap(d.wallIndex);
+}
+
+function startWallPhotoCapture(){
+  captureSteps = roomMode === 'ar' ? buildCaptureStepsForAR() : BOX_DIRECTIONS;
+  stepIndex = 0; capturedImages = {};
+  show($('screen-capture'));
+  showCurrentDirection();
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}, audio:false})
+    .then(stream=>{ mediaStream = stream; $('video').srcObject = stream; })
+    .catch(()=>{
+      $('capHint').textContent = 'Camera ಸಿಗಲಿಲ್ಲ — placeholder ಟೆಕ್ಸ್ಚರ್ ಬಳಸುತ್ತಿದೆ...';
+      setTimeout(autoFillPlaceholders, 900);
+    });
+}
+
+function autoFillPlaceholders(){
+  captureSteps.forEach((d,i)=>{
+    const tint = ['#4a5a2c','#3c4a24','#5a6a3a','#33401f','#3f4d28','#2a2a20'][i % 6];
+    capturedImages[d.key] = placeholderTexture(d.name, tint);
+  });
+  finishCapture();
+}
+
+function captureCurrentFrame(){
+  const d = captureSteps[stepIndex];
+  const video = $('video');
+  if(video.videoWidth){
+    const canvas = $('captureCanvas'); canvas.width=512; canvas.height=512;
+    const ctx = canvas.getContext('2d');
+    const vw=video.videoWidth, vh=video.videoHeight, s=Math.min(vw,vh);
+    ctx.drawImage(video,(vw-s)/2,(vh-s)/2,s,s,0,0,512,512);
+    capturedImages[d.key] = canvas.toDataURL('image/jpeg',0.85);
+  } else {
+    capturedImages[d.key] = placeholderTexture(d.name,'#3c4a24');
+  }
+  beep(700,0.08,'square',0.04);
+  stepIndex++;
+  if(stepIndex >= captureSteps.length) finishCapture();
+  else showCurrentDirection();
+}
+
+function finishCapture(){
+  if(mediaStream){ mediaStream.getTracks().forEach(t=>t.stop()); mediaStream=null; }
+  hide($('screen-capture')); hide($('minimap'));
+  show($('screen-building'));
+  setTimeout(()=>{ buildAndStartGame(); }, 700);
+}
+
+$('btnStartCapture').addEventListener('click', ()=>{
+  roomMode = 'box'; initThreeOnce();
+  hide($('screen-intro'));
+  startWallPhotoCapture();
+});
+$('btnSkipDemo').addEventListener('click', ()=>{
+  roomMode = 'box'; initThreeOnce();
+  hide($('screen-intro')); show($('screen-building'));
+  captureSteps = BOX_DIRECTIONS;
+  setTimeout(autoFillPlaceholders, 300);
+});
+$('btnShutter').addEventListener('click', captureCurrentFrame);
+
+// ---------------------------------------------------------------------
+// POLYGON MATH (AR room shape)
+// ---------------------------------------------------------------------
+function polygonCentroid(pts){
+  let cx=0,cz=0; pts.forEach(p=>{cx+=p.x;cz+=p.z;});
+  return {x:cx/pts.length, z:cz/pts.length};
+}
+function computeWallNormals(pts){
+  const c = polygonCentroid(pts);
+  const normals = [];
+  for(let i=0;i<pts.length;i++){
+    const A=pts[i], B=pts[(i+1)%pts.length];
+    const dx=B.x-A.x, dz=B.z-A.z;
+    let nx=-dz, nz=dx; const len=Math.hypot(nx,nz)||1; nx/=len; nz/=len;
+    const mx=(A.x+B.x)/2, mz=(A.z+B.z)/2;
+    const toC={x:c.x-mx, z:c.z-mz};
+    if(nx*toC.x + nz*toC.z < 0){ nx=-nx; nz=-nz; }
+    normals.push({x:nx,z:nz});
+  }
+  return normals;
+}
+function pointInPolygon(x,z,pts){
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const xi=pts[i].x, zi=pts[i].z, xj=pts[j].x, zj=pts[j].z;
+    const intersect = ((zi>z)!=(zj>z)) && (x < (xj-xi)*(z-zi)/(zj-zi)+xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+function minDistToWalls(x,z,pts,normals){
+  let min = Infinity;
+  for(let i=0;i<pts.length;i++){
+    const A=pts[i], N=normals[i];
+    const d = (x-A.x)*N.x + (z-A.z)*N.z;
+    min = Math.min(min,d);
+  }
+  return min;
+}
+function randomPointInsidePolygon(pts, normals, margin){
+  const xs=pts.map(p=>p.x), zs=pts.map(p=>p.z);
+  const minX=Math.min(...xs), maxX=Math.max(...xs), minZ=Math.min(...zs), maxZ=Math.max(...zs);
+  for(let tries=0; tries<80; tries++){
+    const x = rand(minX,maxX), z = rand(minZ,maxZ);
+    if(pointInPolygon(x,z,pts) && minDistToWalls(x,z,pts,normals) > margin) return {x,z};
+  }
+  const c = polygonCentroid(pts); return c;
+}
+
+// ---------------------------------------------------------------------
+// GAME STATE
+// ---------------------------------------------------------------------
+let moveState={f:false,b:false,l:false,r:false,sprint:false};
+let yaw=0, pitch=0;
+let playerPos = new THREE.Vector3(0,1.6,0);
+let isPointerLocked=false, stamina=100, isHidden=false, hideTimer=0;
+let granny, grannyState='patrol', grannyTarget=new THREE.Vector3();
+let grannySpeedPatrol=1.4, grannySpeedChase=3.1;
+let grannyWaypoints=[], grannyWpIndex=0;
+let catchDistance=1.1, detectDistance=6.5;
+let keysCollected=0; const KEY_COUNT=3;
+let keyMeshes=[];
+let doorMesh, doorPos, doorInward;
+let hideSpotPos;
+let flashlight;
+let gameRunning=false;
+let clock = new THREE.Clock();
+let wallNormals = [];
+let ambientLightRef;
+
+function buildAndStartGame(){
+  hide($('screen-building'));
+  setupLights();
+  if(roomMode === 'ar') buildRoomAR(); else buildRoomBox();
+  buildGranny();
+  show($('gameCanvas')); show($('hud'));
+  updateKeysHUD();
+  setupControlsUI();
+  playerPos.set(0,1.6,0); yaw=0; pitch=0;
+  camera.position.copy(playerPos);
+  gameRunning = true; clock.start(); animate();
+  if(window.matchMedia && window.matchMedia('(min-width:900px)').matches){
+    show($('lockOverlay'));
+    $('lockOverlay').addEventListener('click', requestPointerLock);
+  }
+}
+
+function setupLights(){
+  scene.fog = new THREE.FogExp2(0x050603, 0.075);
+  ambientLightRef = new THREE.AmbientLight(0x20241a, 0.55);
+  scene.add(ambientLightRef);
+  flashlight = new THREE.SpotLight(0xfff2c9, 1.4, 12, Math.PI/6, 0.5, 1.4);
+  camera.add(flashlight); camera.add(flashlight.target);
+  flashlight.target.position.set(0,0,-1);
+  scene.add(camera);
+}
+
+function loadTex(dataURL, repeatX=1, repeatY=1){
+  const tex = new THREE.TextureLoader().load(dataURL);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(repeatX, repeatY);
+  return tex;
+}
+
+// ---- BOX ROOM (fallback, guessed shape) ----
+function buildRoomBox(){
+  const {w,h,d} = room;
+  const matFront = new THREE.MeshStandardMaterial({map:loadTex(capturedImages.front,2,1), roughness:0.95});
+  const matBack  = new THREE.MeshStandardMaterial({map:loadTex(capturedImages.back,2,1), roughness:0.95});
+  const matLeft  = new THREE.MeshStandardMaterial({map:loadTex(capturedImages.left,2,1), roughness:0.95});
+  const matRight = new THREE.MeshStandardMaterial({map:loadTex(capturedImages.right,2,1), roughness:0.95});
+  const matFloor = new THREE.MeshStandardMaterial({map:loadTex(capturedImages.floor,3,3), roughness:1});
+  const matCeil  = new THREE.MeshStandardMaterial({map:loadTex(capturedImages.ceiling,3,3), roughness:1});
+
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w,d), matFloor);
+  floor.rotation.x=-Math.PI/2; scene.add(floor);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(w,d), matCeil);
+  ceil.rotation.x=Math.PI/2; ceil.position.y=h; scene.add(ceil);
+  const wallBack = new THREE.Mesh(new THREE.PlaneGeometry(w,h), matBack); wallBack.position.set(0,h/2,-d/2); scene.add(wallBack);
+  const wallFront = new THREE.Mesh(new THREE.PlaneGeometry(w,h), matFront); wallFront.position.set(0,h/2,d/2); wallFront.rotation.y=Math.PI; scene.add(wallFront);
+  const wallLeft = new THREE.Mesh(new THREE.PlaneGeometry(d,h), matLeft); wallLeft.position.set(-w/2,h/2,0); wallLeft.rotation.y=Math.PI/2; scene.add(wallLeft);
+  const wallRight = new THREE.Mesh(new THREE.PlaneGeometry(d,h), matRight); wallRight.position.set(w/2,h/2,0); wallRight.rotation.y=-Math.PI/2; scene.add(wallRight);
+
+  doorPos = new THREE.Vector3(0,1,-d/2+0.05);
+  doorInward = new THREE.Vector3(0,0,1);
+  const doorMat = new THREE.MeshStandardMaterial({color:0x2b1f14, emissive:0x1a1207, roughness:0.8});
+  doorMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2,2.2), doorMat);
+  doorMesh.position.set(0,1.1,-d/2+0.03); scene.add(doorMesh);
+  const doorGlow = new THREE.PointLight(0x8fae4a,0,3); doorGlow.position.copy(doorMesh.position); doorGlow.name='doorGlow'; scene.add(doorGlow);
+
+  hideSpotPos = new THREE.Vector3(w/2-1.2, 0, -d/2+1.2);
+  const wardrobe = new THREE.Mesh(new THREE.BoxGeometry(1.1,2.2,0.7), new THREE.MeshStandardMaterial({color:0x2e2416, roughness:0.9}));
+  wardrobe.position.set(hideSpotPos.x,1.1,hideSpotPos.z); scene.add(wardrobe);
+
+  const propMat = new THREE.MeshStandardMaterial({color:0x241f16, roughness:1});
+  for(let i=0;i<6;i++){
+    const bw=rand(0.6,1.4), bh=rand(0.6,1.3), bd=rand(0.6,1.4);
+    const box = new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd), propMat);
+    box.position.set(rand(-w/2+1,w/2-1), bh/2, rand(-d/2+1,d/2-1));
+    scene.add(box);
+  }
+  buildKeysBox(w,d);
+  grannyWaypoints = [
+    new THREE.Vector3(-w/2+1.5,0,-d/2+1.5), new THREE.Vector3(w/2-1.5,0,-d/2+1.5),
+    new THREE.Vector3(w/2-1.5,0,d/2-1.5), new THREE.Vector3(-w/2+1.5,0,d/2-1.5)
+  ];
+}
+function buildKeysBox(w,d){
+  keyMeshes = [];
+  for(let i=0;i<KEY_COUNT;i++){
+    const key = new THREE.Mesh(new THREE.TorusGeometry(0.14,0.045,8,16),
+      new THREE.MeshStandardMaterial({color:0x8fae4a, emissive:0x24310f, metalness:0.4, roughness:0.4}));
+    key.position.set(rand(-w/2+1.5,w/2-1.5), 0.35, rand(-d/2+1.5,d/2-1.5));
+    key.userData.collected=false; scene.add(key);
+    const glow = new THREE.PointLight(0x8fae4a,0.6,2.2); glow.position.copy(key.position); scene.add(glow);
+    key.userData.glow = glow; keyMeshes.push(key);
+  }
+}
+
+// ---- AR ROOM (real scanned shape & scale) ----
+function buildRoomAR(){
+  const pts = scanPoints;
+  wallNormals = computeWallNormals(pts);
+
+  // floor & ceiling via triangulated shape
+  const shape = new THREE.Shape(pts.map(p=>new THREE.Vector2(p.x,p.z)));
+  const floorGeo = new THREE.ShapeGeometry(shape);
+  const floorMat = new THREE.MeshStandardMaterial({map:loadTex(capturedImages.floor,1,1), roughness:1, side:THREE.DoubleSide});
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = Math.PI/2; // ShapeGeometry built in XY -> rotate into XZ (y=0)
+  floor.geometry.rotateX(0); // no-op, orientation handled by rotation above
+  scene.add(floor);
+
+  const ceilGeo = new THREE.ShapeGeometry(shape);
+  const ceilMat = new THREE.MeshStandardMaterial({map:loadTex(capturedImages.ceiling,1,1), roughness:1, side:THREE.DoubleSide});
+  const ceil = new THREE.Mesh(ceilGeo, ceilMat);
+  ceil.rotation.x = -Math.PI/2;
+  ceil.position.y = roomHeight;
+  scene.add(ceil);
+
+  // walls: one plane per segment, textured with its own captured photo
+  let longestLen = -1, longestIdx = 0;
+  for(let i=0;i<pts.length;i++){
+    const A = pts[i], B = pts[(i+1)%pts.length];
+    const dx=B.x-A.x, dz=B.z-A.z;
+    const length = Math.hypot(dx,dz);
+    if(length > longestLen){ longestLen = length; longestIdx = i; }
+    const mat = new THREE.MeshStandardMaterial({map:loadTex(capturedImages['wall'+i],1,1), roughness:0.95, side:THREE.DoubleSide});
+    const wallGeo = new THREE.PlaneGeometry(Math.max(length,0.05), roomHeight);
+    const wall = new THREE.Mesh(wallGeo, mat);
+    const mx=(A.x+B.x)/2, mz=(A.z+B.z)/2;
+    wall.position.set(mx, roomHeight/2, mz);
+    const right = new THREE.Vector3(dx,0,dz).normalize();
+    const N = wallNormals[i];
+    const normal = new THREE.Vector3(N.x,0,N.z).normalize();
+    const up = new THREE.Vector3(0,1,0);
+    const m = new THREE.Matrix4().makeBasis(right, up, normal);
+    wall.setRotationFromMatrix(m);
+    scene.add(wall);
+  }
+
+  // door on the longest wall's midpoint
+  const A = pts[longestIdx], B = pts[(longestIdx+1)%pts.length];
+  const dx=B.x-A.x, dz=B.z-A.z;
+  const mx=(A.x+B.x)/2, mz=(A.z+B.z)/2;
+  const N = wallNormals[longestIdx];
+  doorPos = new THREE.Vector3(mx + N.x*0.05, 1.1, mz + N.z*0.05);
+  doorInward = new THREE.Vector3(N.x,0,N.z);
+  const doorMat = new THREE.MeshStandardMaterial({color:0x2b1f14, emissive:0x1a1207, roughness:0.8});
+  doorMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.1,2.1), doorMat);
+  doorMesh.position.copy(doorPos);
+  const rightD = new THREE.Vector3(dx,0,dz).normalize();
+  const normalD = new THREE.Vector3(N.x,0,N.z).normalize();
+  doorMesh.setRotationFromMatrix(new THREE.Matrix4().makeBasis(rightD, new THREE.Vector3(0,1,0), normalD));
+  scene.add(doorMesh);
+  const doorGlow = new THREE.PointLight(0x8fae4a,0,3); doorGlow.position.copy(doorPos); doorGlow.name='doorGlow'; scene.add(doorGlow);
+
+  // hide spot: offset inward from a different wall (not the door wall)
+  const hideWallIdx = (longestIdx + Math.floor(pts.length/2)) % pts.length;
+  const hA = pts[hideWallIdx], hB = pts[(hideWallIdx+1)%pts.length];
+  const hN = wallNormals[hideWallIdx];
+  const hmx=(hA.x+hB.x)/2, hmz=(hA.z+hB.z)/2;
+  hideSpotPos = new THREE.Vector3(hmx + hN.x*0.9, 0, hmz + hN.z*0.9);
+  const wardrobe = new THREE.Mesh(new THREE.BoxGeometry(1.0,2.1,0.6), new THREE.MeshStandardMaterial({color:0x2e2416, roughness:0.9}));
+  wardrobe.position.set(hideSpotPos.x,1.05,hideSpotPos.z);
+  scene.add(wardrobe);
+
+  // keys, scattered legally inside polygon
+  keyMeshes = [];
+  for(let i=0;i<KEY_COUNT;i++){
+    const p = randomPointInsidePolygon(pts, wallNormals, 0.6);
+    const key = new THREE.Mesh(new THREE.TorusGeometry(0.14,0.045,8,16),
+      new THREE.MeshStandardMaterial({color:0x8fae4a, emissive:0x24310f, metalness:0.4, roughness:0.4}));
+    key.position.set(p.x, 0.35, p.z);
+    key.userData.collected=false; scene.add(key);
+    const glow = new THREE.PointLight(0x8fae4a,0.6,2.2); glow.position.copy(key.position); scene.add(glow);
+    key.userData.glow = glow; keyMeshes.push(key);
+  }
+
+  // granny patrol waypoints = the real corners of the room
+  grannyWaypoints = pts.map(p=>new THREE.Vector3(p.x,0,p.z));
+}
+
+function buildGranny(){
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32,1.15,4,8), new THREE.MeshStandardMaterial({color:0x1c1a17, roughness:1}));
+  body.position.y=0.9; group.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.24,10,10), new THREE.MeshStandardMaterial({color:0x2a241f, roughness:1}));
+  head.position.y=1.65; group.add(head);
+  const eyeMat = new THREE.MeshStandardMaterial({color:0xff2222, emissive:0xff0000, emissiveIntensity:2});
+  const eyeGeo = new THREE.SphereGeometry(0.035,6,6);
+  const eyeL=new THREE.Mesh(eyeGeo,eyeMat); eyeL.position.set(-0.08,1.66,0.2); group.add(eyeL);
+  const eyeR=new THREE.Mesh(eyeGeo,eyeMat); eyeR.position.set(0.08,1.66,0.2); group.add(eyeR);
+
+  const start = grannyWaypoints[0] || new THREE.Vector3(0,0,0);
+  group.position.set(start.x,0,start.z);
+  scene.add(group); granny = group; grannyWpIndex = 0;
+}
+
+// ---------------------------------------------------------------------
+// controls
+// ---------------------------------------------------------------------
+function requestPointerLock(){
+  const el = $('gameCanvas');
+  el.requestPointerLock = el.requestPointerLock || el.mozRequestPointerLock;
+  el.requestPointerLock();
+}
+document.addEventListener('pointerlockchange', ()=>{
+  isPointerLocked = document.pointerLockElement === $('gameCanvas');
+  if(isPointerLocked) hide($('lockOverlay')); else if(gameRunning) show($('lockOverlay'));
+});
+document.addEventListener('mousemove', (e)=>{
+  if(!isPointerLocked) return;
+  yaw -= e.movementX*0.0022; pitch -= e.movementY*0.0022;
+  pitch = Math.max(-1.3, Math.min(1.3, pitch));
+});
+window.addEventListener('keydown', (e)=>{
+  if(e.code==='KeyW') moveState.f=true; if(e.code==='KeyS') moveState.b=true;
+  if(e.code==='KeyA') moveState.l=true; if(e.code==='KeyD') moveState.r=true;
+  if(e.code==='ShiftLeft'||e.code==='ShiftRight') moveState.sprint=true;
+  if(e.code==='KeyE') doInteract();
+});
+window.addEventListener('keyup', (e)=>{
+  if(e.code==='KeyW') moveState.f=false; if(e.code==='KeyS') moveState.b=false;
+  if(e.code==='KeyA') moveState.l=false; if(e.code==='KeyD') moveState.r=false;
+  if(e.code==='ShiftLeft'||e.code==='ShiftRight') moveState.sprint=false;
+});
+function setupControlsUI(){
+  if(!(window.matchMedia && window.matchMedia('(max-width:899px)').matches)) return;
+  show($('joy')); show($('mobileLook')); show($('sprintBtn')); show($('interactBtn'));
+  isPointerLocked = true;
+  const joy=$('joy'), stick=$('joyStick'); let joyActive=false, joyStart={x:0,y:0};
+  joy.addEventListener('touchstart',(e)=>{ joyActive=true; const t=e.touches[0]; joyStart={x:t.clientX,y:t.clientY}; });
+  joy.addEventListener('touchmove',(e)=>{
+    if(!joyActive) return; const t=e.touches[0];
+    let dx=t.clientX-joyStart.x, dy=t.clientY-joyStart.y; const max=35;
+    dx=Math.max(-max,Math.min(max,dx)); dy=Math.max(-max,Math.min(max,dy));
+    stick.style.transform=`translate(${dx}px,${dy}px)`;
+    moveState.f=dy<-10; moveState.b=dy>10; moveState.l=dx<-10; moveState.r=dx>10;
+    e.preventDefault();
+  },{passive:false});
+  joy.addEventListener('touchend',()=>{ joyActive=false; stick.style.transform='translate(0,0)'; moveState.f=moveState.b=moveState.l=moveState.r=false; });
+  const look=$('mobileLook'); let lastTouch=null;
+  look.addEventListener('touchstart',(e)=>{ lastTouch=e.touches[e.touches.length-1]; });
+  look.addEventListener('touchmove',(e)=>{
+    const t=e.touches[e.touches.length-1];
+    if(lastTouch){ yaw -= (t.clientX-lastTouch.clientX)*0.004; pitch -= (t.clientY-lastTouch.clientY)*0.004; pitch=Math.max(-1.3,Math.min(1.3,pitch)); }
+    lastTouch=t; e.preventDefault();
+  },{passive:false});
+  look.addEventListener('touchend',()=>{ lastTouch=null; });
+  $('sprintBtn').addEventListener('touchstart',()=>{ moveState.sprint=true; });
+  $('sprintBtn').addEventListener('touchend',()=>{ moveState.sprint=false; });
+  $('interactBtn').addEventListener('touchstart', doInteract);
+}
+function doInteract(){
+  if(!gameRunning) return;
+  const distHide = camera.position.distanceTo(new THREE.Vector3(hideSpotPos.x,1,hideSpotPos.z));
+  const distDoor = camera.position.distanceTo(doorPos);
+  if(distHide < 1.6){
+    isHidden = !isHidden; hideTimer=0; beep(isHidden?220:330,0.15,'sine',0.05);
+  } else if(distDoor < 1.6 && keysCollected >= KEY_COUNT){
+    winGame();
+  } else if(distDoor < 1.6){
+    $('hintBottom').textContent = 'ಬಾಗಿಲು ಲಾಕ್ ಆಗಿದೆ — ಮೊದಲು ' + (KEY_COUNT-keysCollected) + ' ಕೀ ಹುಡುಕಿ.';
+    beep(160,0.2,'square',0.05);
+  }
+}
+
+// ---------------------------------------------------------------------
+// HUD
+// ---------------------------------------------------------------------
+function updateKeysHUD(){
+  const row=$('keysRow'); row.innerHTML='';
+  for(let i=0;i<KEY_COUNT;i++){
+    const d=document.createElement('div');
+    d.className='key-icon'+(i<keysCollected?' got':'');
+    row.appendChild(d);
+  }
+}
+
+// ---------------------------------------------------------------------
+// game loop
+// ---------------------------------------------------------------------
+function animate(){
+  if(!gameRunning) return;
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  updatePlayer(dt);
+  updateGranny(dt);
+  updateKeys(dt);
+  updateDanger(dt);
+  renderer.render(scene, camera);
+}
+
+function updatePlayer(dt){
+  camera.rotation.order='YXZ';
+  camera.rotation.y=yaw; camera.rotation.x=pitch;
+
+  const sprinting = moveState.sprint && stamina>2 && !isHidden;
+  const speed = isHidden ? 0 : (sprinting ? 4.2 : 2.1);
+
+  const dir = new THREE.Vector3();
+  if(moveState.f) dir.z -= 1; if(moveState.b) dir.z += 1;
+  if(moveState.l) dir.x -= 1; if(moveState.r) dir.x += 1;
+  if(dir.lengthSq()>0){
+    dir.normalize(); dir.applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+    playerPos.x += dir.x*speed*dt; playerPos.z += dir.z*speed*dt;
+  }
+
+  if(roomMode === 'ar'){
+    const margin = 0.35;
+    for(let i=0;i<scanPoints.length;i++){
+      const A = scanPoints[i], N = wallNormals[i];
+      const d = (playerPos.x-A.x)*N.x + (playerPos.z-A.z)*N.z;
+      if(d < margin){
+        playerPos.x += N.x*(margin-d);
+        playerPos.z += N.z*(margin-d);
+      }
+    }
+  } else {
+    const margin=0.4;
+    playerPos.x = Math.max(-room.w/2+margin, Math.min(room.w/2-margin, playerPos.x));
+    playerPos.z = Math.max(-room.d/2+margin, Math.min(room.d/2-margin, playerPos.z));
+  }
+  playerPos.y=1.6; camera.position.copy(playerPos);
+
+  if(sprinting) stamina=Math.max(0,stamina-dt*28); else stamina=Math.min(100,stamina+dt*14);
+  $('staminaBar').style.width = stamina+'%';
+
+  if(isHidden){
+    hideTimer += dt;
+    $('hintBottom').textContent = 'ಅಡಗಿದ್ದೀರಿ... (E ಒತ್ತಿ ಹೊರಬರಲು)';
+    if(hideTimer>14) isHidden=false;
+  } else {
+    $('hintBottom').textContent = 'WASD - ನಡೆ | Mouse - ನೋಡು | Shift - ಓಡು | E - ಅಡಗು/ಬಾಗಿಲು';
+  }
+}
+
+function updateGranny(dt){
+  const distToPlayer = granny.position.distanceTo(new THREE.Vector3(playerPos.x,0,playerPos.z));
+  if(!isHidden && distToPlayer<detectDistance && Math.random()<0.985) grannyState='chase';
+  else if(isHidden || distToPlayer>detectDistance*1.6) grannyState='patrol';
+
+  let speed;
+  if(grannyState==='chase'){ speed=grannySpeedChase; grannyTarget.set(playerPos.x,0,playerPos.z); }
+  else {
+    speed=grannySpeedPatrol;
+    grannyTarget.copy(grannyWaypoints[grannyWpIndex]);
+    if(granny.position.distanceTo(grannyTarget)<0.6) grannyWpIndex=(grannyWpIndex+1)%grannyWaypoints.length;
+  }
+  const toTarget = new THREE.Vector3().subVectors(grannyTarget, granny.position); toTarget.y=0;
+  if(toTarget.lengthSq()>0.0001){
+    toTarget.normalize();
+    granny.position.x += toTarget.x*speed*dt; granny.position.z += toTarget.z*speed*dt;
+    granny.rotation.y = Math.atan2(toTarget.x, toTarget.z);
+  }
+  if(!isHidden && distToPlayer<catchDistance) loseGame();
+}
+
+function updateKeys(dt){
+  keyMeshes.forEach(key=>{
+    if(key.userData.collected) return;
+    key.rotation.y += dt*1.6;
+    if(camera.position.distanceTo(key.position) < 1.0){
+      key.userData.collected=true; scene.remove(key); scene.remove(key.userData.glow);
+      keysCollected++; updateKeysHUD(); beep(880,0.15,'triangle',0.06);
+      if(keysCollected>=KEY_COUNT){
+        const glow = scene.getObjectByName('doorGlow'); if(glow) glow.intensity=1.2;
+        $('hintBottom').textContent = 'ಎಲ್ಲಾ ಕೀ ಸಿಕ್ಕಿತು! ಬಾಗಿಲಿನ ಬಳಿ ಹೋಗಿ E ಒತ್ತಿ.';
+      }
+    }
+  });
+}
+
+function updateDanger(dt){
+  const distToPlayer = granny.position.distanceTo(new THREE.Vector3(playerPos.x,0,playerPos.z));
+  const t = Math.max(0, 1-(distToPlayer/detectDistance));
+  $('dangerFlash').style.background = `rgba(168,48,42,${(t*0.28).toFixed(2)})`;
+  if(grannyState==='chase' && Math.random()<dt*2.2) beep(90+t*40,0.12,'sine',0.03+t*0.05);
+}
+
+function loseGame(){
+  gameRunning=false; beep(70,0.6,'sawtooth',0.18);
+  $('dangerFlash').style.background='rgba(168,48,42,0.9)';
+  document.exitPointerLock && document.exitPointerLock();
+  setTimeout(()=>{
+    hide($('gameCanvas')); hide($('hud')); hide($('lockOverlay'));
+    show($('screen-over')); $('dangerFlash').style.background='rgba(168,48,42,0)';
+  },500);
+}
+function winGame(){
+  gameRunning=false; beep(660,0.2,'triangle',0.08);
+  setTimeout(()=>beep(880,0.25,'triangle',0.08),180);
+  document.exitPointerLock && document.exitPointerLock();
+  setTimeout(()=>{ hide($('gameCanvas')); hide($('hud')); hide($('lockOverlay')); show($('screen-win')); },500);
+}
+
+// ---------------------------------------------------------------------
+// restart / navigation
+// ---------------------------------------------------------------------
+function resetGameState(){
+  keysCollected=0; isHidden=false; hideTimer=0; stamina=100;
+  grannyState='patrol'; grannyWpIndex=0;
+  playerPos.set(0,1.6,0); yaw=0; pitch=0;
+}
+function clearSceneKeepCamera(){
+  const toRemove = scene.children.filter(o => o !== camera);
+  toRemove.forEach(o=>scene.remove(o));
+  camera.children.slice().forEach(c=>camera.remove(c));
+}
+function restartSameRoom(){
+  hide($('screen-over')); hide($('screen-win'));
+  clearSceneKeepCamera();
+  resetGameState();
+  setupLights();
+  if(roomMode==='ar') buildRoomAR(); else buildRoomBox();
+  buildGranny();
+  updateKeysHUD();
+  show($('gameCanvas')); show($('hud'));
+  gameRunning=true; clock.start(); animate();
+  if(window.matchMedia && window.matchMedia('(min-width:900px)').matches){ show($('lockOverlay')); }
+}
+function backToScan(){
+  hide($('screen-over')); hide($('screen-win')); hide($('gameCanvas')); hide($('hud'));
+  if(scene) clearSceneKeepCamera();
+  resetGameState();
+  capturedImages={}; stepIndex=0; scanPoints=[];
+  show($('screen-intro'));
+}
+$('btnRetry').addEventListener('click', restartSameRoom);
+$('btnRetry2').addEventListener('click', restartSameRoom);
+$('btnHome1').addEventListener('click', backToScan);
+$('btnHome2').addEventListener('click', backToScan);
+</script>
+</body>
+</html>
