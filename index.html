@@ -338,14 +338,26 @@ async function startARScan(){
   lineObj = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({color:0x8fae4a}));
   scene.add(lineObj);
 
-  try{
-    xrSession = await navigator.xr.requestSession('immersive-ar', {
-      requiredFeatures: ['hit-test'],
-      optionalFeatures: ['dom-overlay', 'local-floor'],
-      domOverlay: { root: $('arOverlay') }
-    });
-  }catch(e){
-    alert('AR session ಶುರು ಆಗಲಿಲ್ಲ. Quick Box Room ಬಳಸಿ.');
+  // Try progressively simpler feature sets — some Android/Chrome builds
+  // reject a session if an optional feature (dom-overlay/local-floor) or
+  // even the underlying platform ends up not truly available, even though
+  // isSessionSupported('immersive-ar') returned true.
+  const attempts = [
+    { requiredFeatures:['hit-test'], optionalFeatures:['dom-overlay','local-floor'], domOverlay:{root:$('arOverlay')} },
+    { requiredFeatures:['hit-test'], optionalFeatures:['local-floor'] },
+    { requiredFeatures:['hit-test'] },
+  ];
+  let lastErr = null;
+  for(const opts of attempts){
+    try{
+      xrSession = await navigator.xr.requestSession('immersive-ar', opts);
+      lastErr = null;
+      break;
+    }catch(e){ lastErr = e; console.error('WebXR requestSession failed with', JSON.stringify(opts), e); }
+  }
+  if(!xrSession){
+    const detail = lastErr ? (lastErr.name + ': ' + lastErr.message) : 'unknown';
+    alert('AR session ಶುರು ಆಗಲಿಲ್ಲ.\n\nDetail: ' + detail + '\n\nಸಾಧ್ಯವಾದ ಕಾರಣಗಳು:\n1) "Google Play Services for AR" app Play Store ಇಂದ install/update ಆಗಿಲ್ಲ\n2) ಈ Chrome build hit-test ಸಪೋರ್ಟ್ ಮಾಡಲ್ಲ\n3) Camera permission block ಆಗಿದೆ\n\nQuick Box Room ಬಳಸಿ, ಅಥವಾ USB ಮೂಲಕ chrome://inspect (desktop Chrome) connect ಮಾಡಿ exact error ನೋಡಿ ನನಗೆ ಹೇಳಿ.');
     hide($('screen-ar-intro')); show($('screen-intro'));
     return;
   }
