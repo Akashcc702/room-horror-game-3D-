@@ -3,830 +3,489 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D House Scanner - Guided AR</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overflow: hidden;
-            background: #000;
-        }
-        
-        #container {
-            width: 100vw;
-            height: 100vh;
-            position: relative;
-        }
-        
-        #videoFeed {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 1;
-        }
-        
-        #canvas3D {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 2;
-        }
-        
-        /* Scanning Guide Overlay */
-        #scanGuide {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 3;
-            pointer-events: none;
-            display: none;
-        }
-        
-        /* Grid Overlay */
-        .grid-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image: 
-                linear-gradient(rgba(0, 255, 0, 0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 0, 0.1) 1px, transparent 1px);
-            background-size: 50px 50px;
-            border: 2px solid rgba(0, 255, 0, 0.3);
-        }
-        
-        /* Scanning Frame */
-        .scan-frame {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 300px;
-            height: 400px;
-            border: 3px solid #00ff00;
-            border-radius: 20px;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
-        }
-        
-        .scan-frame::before,
-        .scan-frame::after {
-            content: '';
-            position: absolute;
-            width: 30px;
-            height: 30px;
-            border-color: #00ff00;
-            border-style: solid;
-        }
-        
-        .scan-frame::before {
-            top: -3px;
-            left: -3px;
-            border-width: 3px 0 0 3px;
-            border-radius: 20px 0 0 0;
-        }
-        
-        .scan-frame::after {
-            bottom: -3px;
-            right: -3px;
-            border-width: 0 3px 3px 0;
-            border-radius: 0 0 20px 0;
-        }
-        
-        /* Direction Arrows */
-        .direction-arrow {
-            position: absolute;
-            font-size: 40px;
-            color: #00ff00;
-            text-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
-            animation: pulse 1.5s infinite;
-        }
-        
-        .arrow-up { top: 20px; left: 50%; transform: translateX(-50%); }
-        .arrow-down { bottom: 150px; left: 50%; transform: translateX(-50%); }
-        .arrow-left { top: 50%; left: 20px; transform: translateY(-50%); }
-        .arrow-right { top: 50%; right: 20px; transform: translateY(-50%); }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(1.1); }
-        }
-        
-        /* Progress Panel */
-        #progressPanel {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: #fff;
-            padding: 15px 30px;
-            border-radius: 15px;
-            z-index: 4;
-            text-align: center;
-            min-width: 300px;
-        }
-        
-        #progressBar {
-            width: 100%;
-            height: 10px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 5px;
-            margin: 10px 0;
-            overflow: hidden;
-        }
-        
-        #progressFill {
-            height: 100%;
-            background: linear-gradient(90deg, #00ff00, #00cc00);
-            width: 0%;
-            transition: width 0.3s;
-        }
-        
-        /* Instructions Panel */
-        #instructionsPanel {
-            position: absolute;
-            bottom: 150px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.85);
-            color: #fff;
-            padding: 20px;
-            border-radius: 15px;
-            z-index: 4;
-            max-width: 90%;
-            text-align: center;
-            border: 2px solid #00ff00;
-        }
-        
-        #instructionsPanel h3 {
-            color: #00ff00;
-            margin-bottom: 10px;
-        }
-        
-        #instructionsPanel ol {
-            text-align: left;
-            margin-left: 20px;
-        }
-        
-        #instructionsPanel li {
-            margin: 8px 0;
-            line-height: 1.5;
-        }
-        
-        /* Control Buttons */
-        #controls {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 5;
-            display: flex;
-            gap: 15px;
-        }
-        
-        .control-btn {
-            width: 70px;
-            height: 70px;
-            background: rgba(0, 255, 0, 0.3);
-            border: 2px solid #00ff00;
-            border-radius: 50%;
-            color: #fff;
-            font-size: 28px;
-            cursor: pointer;
-            backdrop-filter: blur(10px);
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .control-btn:active {
-            background: rgba(0, 255, 0, 0.6);
-            transform: scale(0.95);
-        }
-        
-        /* Start Screen */
-        #startScreen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #1a1a2e, #16213e);
-            z-index: 10;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-        }
-        
-        #startScreen h1 {
-            font-size: 32px;
-            margin-bottom: 20px;
-            text-align: center;
-            color: #00ff00;
-        }
-        
-        #startScreen .features {
-            margin: 30px 0;
-            text-align: left;
-        }
-        
-        #startScreen .feature-item {
-            margin: 15px 0;
-            padding: 10px 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            border-left: 4px solid #00ff00;
-        }
-        
-        #startBtn {
-            padding: 20px 50px;
-            background: linear-gradient(135deg, #00ff00, #00cc00);
-            color: #000;
-            border: none;
-            border-radius: 30px;
-            font-size: 20px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 30px;
-            transition: transform 0.3s;
-        }
-        
-        #startBtn:hover {
-            transform: scale(1.05);
-        }
-        
-        /* Coverage Map */
-        #coverageMap {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 150px;
-            height: 150px;
-            background: rgba(0, 0, 0, 0.7);
-            border: 2px solid #00ff00;
-            border-radius: 10px;
-            z-index: 4;
-            display: none;
-        }
-        
-        #coverageMap canvas {
-            width: 100%;
-            height: 100%;
-        }
-        
-        /* Scanning Tips */
-        .tip-box {
-            background: rgba(0, 255, 0, 0.2);
-            border: 1px solid #00ff00;
-            padding: 10px;
-            border-radius: 8px;
-            margin: 10px 0;
-            font-size: 14px;
-        }
-        
-        /* Corner markers */
-        .corner-marker {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #00ff00;
-        }
-        
-        .corner-tl { top: 100px; left: 100px; border-right: 0; border-bottom: 0; border-radius: 10px 0 0 0; }
-        .corner-tr { top: 100px; right: 100px; border-left: 0; border-bottom: 0; border-radius: 0 10px 0 0; }
-        .corner-bl { bottom: 150px; left: 100px; border-right: 0; border-top: 0; border-radius: 0 0 0 10px; }
-        .corner-br { bottom: 150px; right: 100px; border-left: 0; border-top: 0; border-radius: 0 0 10px 0; }
-        
-        /* Scan quality indicator */
-        #qualityIndicator {
-            position: absolute;
-            top: 50%;
-            right: 20px;
-            transform: translateY(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: #fff;
-            padding: 15px;
-            border-radius: 10px;
-            z-index: 4;
-            text-align: center;
-        }
-        
-        .quality-bar {
-            width: 30px;
-            height: 100px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 5px;
-            margin: 10px auto;
-            overflow: hidden;
-            position: relative;
-        }
-        
-        .quality-fill {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            background: linear-gradient(to top, #ff0000, #ffff00, #00ff00);
-            transition: height 0.3s;
-        }
-    </style>
+    <title>3D House Scanner Pro - Ultimate</title>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="dark-mode">
     <div id="container">
         <video id="videoFeed" autoplay playsinline></video>
         <canvas id="canvas3D"></canvas>
-        
-        <!-- Start Screen -->
+
+        <!-- ===== TOP TOOLBAR ===== -->
+        <div id="topToolbar">
+            <div class="toolbar-left">
+                <button id="langBtn" class="tool-btn" title="Language">🌐</button>
+                <button id="themeToggle" class="tool-btn" title="Theme">🌗</button>
+                <button id="timeOfDayBtn" class="tool-btn" title="Time">🕐</button>
+                <button id="weatherBtn" class="tool-btn" title="Weather">🌤️</button>
+                <button id="musicBtn" class="tool-btn" title="Music">🎵</button>
+                <span id="appTitle" data-i18n="appTitle">🏠 3D Scanner Pro</span>
+            </div>
+            <div class="toolbar-right">
+                <div id="gameScoreTop" class="info-chip hidden">
+                    <span>🎮</span><span id="topScoreValue">0</span>
+                </div>
+                <div id="gpsInfo" class="info-chip hidden">
+                    <span>📍</span><span id="gpsCoords">--</span>
+                </div>
+                <div id="scanQuality" class="info-chip">
+                    <span data-i18n="quality">Q:</span>
+                    <div class="quality-bar"><div id="qualityFill"></div></div>
+                    <span id="qualityScore">0%</span>
+                </div>
+                <div id="dimensions" class="info-chip">
+                    <span id="dimW">W:0m</span>
+                    <span id="dimH">H:0m</span>
+                    <span id="dimD">D:0m</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== START SCREEN ===== -->
         <div id="startScreen">
-            <h1> 3D House Scanner</h1>
-            <div style="font-size: 60px; margin: 20px;"></div>
-            <div class="features">
-                <div class="feature-item">✓ Step-by-step scanning guide</div>
-                <div class="feature-item">✓ Real-time coverage tracking</div>
-                <div class="feature-item">✓ AR visual overlays</div>
-                <div class="feature-item">✓ Automatic 3D model generation</div>
-                <div class="feature-item">✓ Professional quality scanning</div>
+            <h1 data-i18n="welcomeTitle">🏠 3D House Scanner Pro</h1>
+            <p class="subtitle" data-i18n="subtitle">26 Features • AI Ready • Offline</p>
+            <div class="feature-grid">
+                <div class="feature-card">📐 <span data-i18n="measure">Measure</span></div>
+                <div class="feature-card">📊 <span data-i18n="qualityScore">Quality</span></div>
+                <div class="feature-card">🎬 <span data-i18n="record">Record</span></div>
+                <div class="feature-card">🏗️ <span data-i18n="floorPlan">Floor Plan</span></div>
+                <div class="feature-card">📏 <span data-i18n="dims">Dimensions</span></div>
+                <div class="feature-card">🎨 <span data-i18n="materials">Materials</span></div>
+                <div class="feature-card">📁 <span data-i18n="export">Export</span></div>
+                <div class="feature-card">🖼️ <span data-i18n="screenshots">Screenshots</span></div>
+                <div class="feature-card">🕐 <span data-i18n="timeOfDay">Time</span></div>
+                <div class="feature-card">🌗 <span data-i18n="theme">Theme</span></div>
+                <div class="feature-card">📍 <span data-i18n="gps">GPS</span></div>
+                <div class="feature-card">🔍 <span data-i18n="detail">Detail</span></div>
+                <div class="feature-card">💡 <span data-i18n="lighting">Lighting</span></div>
+                <div class="feature-card">🏆 <span data-i18n="achievements">Achievements</span></div>
+                <div class="feature-card">📋 <span data-i18n="projects">Projects</span></div>
+                <div class="feature-card">🌙 <span data-i18n="lowLight">Low Light</span></div>
+                <div class="feature-card">📄 <span data-i18n="pdf">PDF</span></div>
+                <div class="feature-card">🌤️ <span data-i18n="weather">Weather</span></div>
+                <div class="feature-card">🪑 <span data-i18n="furniture">Furniture</span></div>
+                <div class="feature-card">🔧 <span data-i18n="repair">Repair</span></div>
+                <div class="feature-card">🎥 <span data-i18n="videoTour">Tour</span></div>
+                <div class="feature-card">📧 <span data-i18n="email">Email</span></div>
+                <div class="feature-card">🎮 <span data-i18n="game">Game</span></div>
+                <div class="feature-card">🎵 <span data-i18n="music">Music</span></div>
+                <div class="feature-card">🎭 <span data-i18n="character">Character</span></div>
+                <div class="feature-card">🌐 <span data-i18n="language">Language</span></div>
             </div>
-            <button id="startBtn">📷 Start Scanning</button>
+            <button id="startBtn" data-i18n="startScan">📷 Start Scanning</button>
         </div>
-        
-        <!-- Progress Panel -->
-        <div id="progressPanel" style="display: none;">
-            <h2>📐 Scanning Progress</h2>
-            <div id="progressBar">
-                <div id="progressFill"></div>
-            </div>
-            <div id="progressText">0% Complete</div>
-            <div id="scanStage">Stage 1: Floor Scanning</div>
-        </div>
-        
-        <!-- Coverage Map -->
-        <div id="coverageMap">
-            <canvas id="coverageCanvas"></canvas>
-        </div>
-        
-        <!-- Quality Indicator -->
-        <div id="qualityIndicator" style="display: none;">
-            <div>Scan Quality</div>
-            <div class="quality-bar">
-                <div class="quality-fill" id="qualityFill" style="height: 0%"></div>
-            </div>
-            <div id="qualityText">Good</div>
-        </div>
-        
-        <!-- Scanning Guide Overlay -->
-        <div id="scanGuide">
-            <div class="grid-overlay"></div>
+
+        <!-- ===== SCAN OVERLAY ===== -->
+        <div id="scanOverlay" class="hidden">
+            <div class="scan-grid"></div>
             <div class="scan-frame"></div>
-            <div class="corner-marker corner-tl"></div>
-            <div class="corner-marker corner-tr"></div>
-            <div class="corner-marker corner-bl"></div>
-            <div class="corner-marker corner-br"></div>
-            
-            <!-- Direction Arrows -->
-            <div class="direction-arrow arrow-up" id="arrowUp">⬆️</div>
-            <div class="direction-arrow arrow-down" id="arrowDown">⬇️</div>
-            <div class="direction-arrow arrow-left" id="arrowLeft">⬅️</div>
-            <div class="direction-arrow arrow-right" id="arrowRight">️</div>
+            <div id="lowLightOverlay" class="hidden"></div>
+            <div id="weatherOverlay"></div>
         </div>
-        
-        <!-- Instructions Panel -->
-        <div id="instructionsPanel" style="display: none;">
-            <h3>📋 Scanning Instructions</h3>
-            <div id="currentInstruction">
-                <ol>
-                    <li>Start from one corner of the room</li>
-                    <li>Slowly move camera horizontally</li>
-                    <li>Cover entire floor area</li>
-                    <li>Overlap each scan by 60%</li>
-                    <li>Keep camera steady and level</li>
-                </ol>
+
+        <!-- ===== PROGRESS PANEL ===== -->
+        <div id="progressPanel" class="panel hidden">
+            <h3 data-i18n="scanning">🔍 Scanning</h3>
+            <div class="progress-bar"><div id="progressFill"></div></div>
+            <div id="progressText">0%</div>
+        </div>
+
+        <!-- ===== RECORDING INDICATOR ===== -->
+        <div id="recordingIndicator" class="hidden">
+            <div class="rec-dot"></div>
+            <span>REC <span id="recTime">00:00</span></span>
+        </div>
+
+        <!-- ===== SIDE TOOLBAR ===== -->
+        <div id="sideToolbar" class="hidden">
+            <button class="side-btn" id="measureBtn" title="Measure">📐</button>
+            <button class="side-btn" id="recordBtn" title="Record">🎬</button>
+            <button class="side-btn" id="floorPlanBtn" title="Floor Plan">🏗️</button>
+            <button class="side-btn" id="materialBtn" title="Materials">🎨</button>
+            <button class="side-btn" id="screenshotBtn" title="Screenshot">🖼️</button>
+            <button class="side-btn" id="exportBtn" title="Export">📁</button>
+            <button class="side-btn" id="gpsBtn" title="GPS">📍</button>
+            <button class="side-btn" id="detailBtn" title="Detail">🔍</button>
+            <button class="side-btn" id="lightingBtn" title="Lighting">💡</button>
+            <button class="side-btn" id="lowLightBtn" title="Low Light">🌙</button>
+            <button class="side-btn" id="pdfBtn" title="PDF">📄</button>
+            <button class="side-btn" id="projectBtn" title="Projects">📋</button>
+            <button class="side-btn" id="achievementBtn" title="Achievements">🏆</button>
+            <button class="side-btn" id="furnitureBtn" title="Furniture">🪑</button>
+            <button class="side-btn" id="repairBtn" title="Repair">🔧</button>
+            <button class="side-btn" id="videoTourBtn" title="Tour">🎥</button>
+            <button class="side-btn" id="emailBtn" title="Email">📧</button>
+            <button class="side-btn" id="gameBtn" title="Game">🎮</button>
+            <button class="side-btn" id="characterBtn" title="Character">🎭</button>
+            <button class="side-btn" id="completeBtn" title="Complete">✅</button>
+        </div>
+
+        <!-- ===== MEASURE INFO ===== -->
+        <div id="measureInfo" class="info-panel hidden">
+            <h4>📐 <span data-i18n="measureMode">Measurement Mode</span></h4>
+            <p data-i18n="measureHint">Click 2 points on model</p>
+            <div id="measureResult">Distance: ---</div>
+            <button id="clearMeasure" class="small-btn" data-i18n="clear">Clear</button>
+        </div>
+
+        <!-- ===== MATERIAL PANEL ===== -->
+        <div id="materialPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🎨 <span data-i18n="materials">Materials</span></h3>
+                <button class="close-btn" data-close="materialPanel">×</button>
             </div>
-            <div class="tip-box">
-                💡 <strong>Tip:</strong> Move slowly and ensure good lighting for best results
+            <div class="material-grid" id="materialGrid"></div>
+        </div>
+
+        <!-- ===== EXPORT PANEL ===== -->
+        <div id="exportPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>📁 <span data-i18n="exportModel">Export Model</span></h3>
+                <button class="close-btn" data-close="exportPanel">×</button>
+            </div>
+            <div class="export-options">
+                <button class="export-btn" data-format="obj"><span class="export-icon">📄</span><div><strong>OBJ</strong><small>Universal format</small></div></button>
+                <button class="export-btn" data-format="gltf"><span class="export-icon">🎨</span><div><strong>GLTF</strong><small>Web optimized</small></div></button>
+                <button class="export-btn" data-format="stl"><span class="export-icon">🔧</span><div><strong>STL</strong><small>3D printing</small></div></button>
             </div>
         </div>
-        
-        <!-- Control Buttons -->
-        <div id="controls" style="display: none;">
-            <button class="control-btn" id="pauseBtn">⏸️</button>
-            <button class="control-btn" id="retakeBtn">🔄</button>
-            <button class="control-btn" id="completeBtn">✅</button>
+
+        <!-- ===== SCREENSHOT GALLERY ===== -->
+        <div id="screenshotModal" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🖼️ <span data-i18n="screenshots">Screenshots</span></h3>
+                <button class="close-btn" data-close="screenshotModal">×</button>
+            </div>
+            <div id="screenshotGallery" class="gallery-grid"></div>
+        </div>
+
+        <!-- ===== TIME OF DAY ===== -->
+        <div id="timePanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🕐 <span data-i18n="timeOfDay">Time of Day</span></h3>
+                <button class="close-btn" data-close="timePanel">×</button>
+            </div>
+            <div class="time-options">
+                <button class="time-btn" data-time="morning">🌅 <span data-i18n="morning">Morning</span></button>
+                <button class="time-btn" data-time="noon">☀️ <span data-i18n="noon">Noon</span></button>
+                <button class="time-btn" data-time="evening">🌇 <span data-i18n="evening">Evening</span></button>
+                <button class="time-btn" data-time="night">🌙 <span data-i18n="night">Night</span></button>
+            </div>
+        </div>
+
+        <!-- ===== GPS PANEL ===== -->
+        <div id="gpsPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>📍 <span data-i18n="gpsLocation">GPS Location</span></h3>
+                <button class="close-btn" data-close="gpsPanel">×</button>
+            </div>
+            <div class="gps-info">
+                <div class="gps-row"><span>Latitude:</span><span id="gpsLat">--</span></div>
+                <div class="gps-row"><span>Longitude:</span><span id="gpsLng">--</span></div>
+                <div class="gps-row"><span>Accuracy:</span><span id="gpsAccuracy">--</span></div>
+                <div class="gps-row"><span>Altitude:</span><span id="gpsAlt">--</span></div>
+                <div class="gps-row"><span>Time:</span><span id="gpsTime">--</span></div>
+            </div>
+            <button id="refreshGps" class="action-btn">🔄 <span data-i18n="refresh">Refresh</span></button>
+            <button id="saveGpsTag" class="action-btn">💾 <span data-i18n="saveToProject">Save to Project</span></button>
+        </div>
+
+        <!-- ===== DETAIL PANEL ===== -->
+        <div id="detailPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🔍 <span data-i18n="detailCapture">Detail Capture</span></h3>
+                <button class="close-btn" data-close="detailPanel">×</button>
+            </div>
+            <label data-i18n="zoom">Zoom: <span id="zoomValue">1.0x</span></label>
+            <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1">
+            <div class="detail-options">
+                <button class="detail-btn" data-zoom="2">2x</button>
+                <button class="detail-btn" data-zoom="3">3x</button>
+                <button class="detail-btn" data-zoom="4">4x</button>
+                <button class="detail-btn" data-zoom="5">5x</button>
+            </div>
+            <button id="captureDetail" class="action-btn">📸 <span data-i18n="capture">Capture</span></button>
+        </div>
+
+        <!-- ===== LIGHTING PANEL ===== -->
+        <div id="lightingPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>💡 <span data-i18n="lightingSim">Lighting Simulator</span></h3>
+                <button class="close-btn" data-close="lightingPanel">×</button>
+            </div>
+            <div class="lighting-presets">
+                <button class="light-preset" data-preset="natural">☀️ Natural</button>
+                <button class="light-preset" data-preset="warm">🔥 Warm</button>
+                <button class="light-preset" data-preset="cool">❄️ Cool</button>
+                <button class="light-preset" data-preset="dramatic">🎭 Dramatic</button>
+                <button class="light-preset" data-preset="studio">📷 Studio</button>
+                <button class="light-preset" data-preset="sunset">🌅 Sunset</button>
+            </div>
+            <div class="light-controls">
+                <label>Ambient: <input type="range" id="ambientIntensity" min="0" max="2" step="0.1" value="0.6"></label>
+                <label>Directional: <input type="range" id="dirIntensity" min="0" max="2" step="0.1" value="0.8"></label>
+                <label>Angle: <input type="range" id="lightAngle" min="0" max="360" value="45"></label>
+                <label>Color: <input type="color" id="lightColor" value="#ffffff"></label>
+            </div>
+        </div>
+
+        <!-- ===== LOW LIGHT PANEL ===== -->
+        <div id="lowLightPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🌙 <span data-i18n="lowLightEnhance">Low Light Enhancement</span></h3>
+                <button class="close-btn" data-close="lowLightPanel">×</button>
+            </div>
+            <div class="toggle-switch">
+                <label data-i18n="enable">Enable</label>
+                <input type="checkbox" id="lowLightToggle">
+            </div>
+            <label data-i18n="brightness">Brightness: <span id="brightnessVal">1.0</span></label>
+            <input type="range" id="brightnessSlider" min="0.5" max="3" step="0.1" value="1">
+            <label data-i18n="contrast">Contrast: <span id="contrastVal">1.0</span></label>
+            <input type="range" id="contrastSlider" min="0.5" max="3" step="0.1" value="1">
+            <div class="enhance-presets">
+                <button class="enhance-preset" data-preset="auto">🤖 Auto</button>
+                <button class="enhance-preset" data-preset="bright">☀️ Bright</button>
+                <button class="enhance-preset" data-preset="night">🌙 Night</button>
+            </div>
+        </div>
+
+        <!-- ===== WEATHER PANEL ===== -->
+        <div id="weatherPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🌤️ <span data-i18n="weatherSim">Weather Simulation</span></h3>
+                <button class="close-btn" data-close="weatherPanel">×</button>
+            </div>
+            <div class="weather-options">
+                <button class="weather-btn" data-weather="clear">☀️ Clear</button>
+                <button class="weather-btn" data-weather="cloudy">☁️ Cloudy</button>
+                <button class="weather-btn" data-weather="rain">🌧️ Rain</button>
+                <button class="weather-btn" data-weather="snow">❄️ Snow</button>
+                <button class="weather-btn" data-weather="fog">🌫️ Fog</button>
+                <button class="weather-btn" data-weather="storm">⛈️ Storm</button>
+            </div>
+            <label data-i18n="intensity">Intensity: <span id="weatherIntensityVal">50%</span></label>
+            <input type="range" id="weatherIntensity" min="0" max="100" value="50">
+        </div>
+
+        <!-- ===== PDF PANEL ===== -->
+        <div id="pdfPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>📄 <span data-i18n="pdfReport">PDF Report</span></h3>
+                <button class="close-btn" data-close="pdfPanel">×</button>
+            </div>
+            <div class="pdf-options">
+                <label><input type="checkbox" id="pdfIncludeImages" checked> Screenshots</label>
+                <label><input type="checkbox" id="pdfIncludeDimensions" checked> Dimensions</label>
+                <label><input type="checkbox" id="pdfIncludeGPS" checked> GPS Location</label>
+            </div>
+            <button id="generatePdf" class="action-btn">📄 <span data-i18n="generatePdf">Generate PDF</span></button>
+        </div>
+
+        <!-- ===== PROJECT PANEL ===== -->
+        <div id="projectPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>📋 <span data-i18n="projects">Projects</span></h3>
+                <button class="close-btn" data-close="projectPanel">×</button>
+            </div>
+            <input type="text" id="projectName" placeholder="Project Name" value="My House Scan">
+            <textarea id="projectNotes" placeholder="Notes..."></textarea>
+            <button id="saveProject" class="action-btn">💾 <span data-i18n="saveProject">Save Project</span></button>
+            <h4 data-i18n="savedProjects">Saved Projects</h4>
+            <div id="projectList"></div>
+        </div>
+
+        <!-- ===== ACHIEVEMENT PANEL ===== -->
+        <div id="achievementPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🏆 <span data-i18n="achievements">Achievements</span></h3>
+                <button class="close-btn" data-close="achievementPanel">×</button>
+            </div>
+            <div class="achievement-stats">
+                <div class="stat-box"><div class="stat-number" id="totalPoints">0</div><div class="stat-label">Points</div></div>
+                <div class="stat-box"><div class="stat-number" id="unlockedCount">0</div><div class="stat-label">Unlocked</div></div>
+            </div>
+            <div id="achievementList" class="achievement-list"></div>
+        </div>
+
+        <!-- ===== FURNITURE PANEL ===== -->
+        <div id="furniturePanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🪑 <span data-i18n="furnitureLib">Furniture Library</span></h3>
+                <button class="close-btn" data-close="furniturePanel">×</button>
+            </div>
+            <div class="furniture-categories">
+                <button class="cat-btn active" data-cat="all">All</button>
+                <button class="cat-btn" data-cat="living">Living</button>
+                <button class="cat-btn" data-cat="bedroom">Bedroom</button>
+                <button class="cat-btn" data-cat="kitchen">Kitchen</button>
+                <button class="cat-btn" data-cat="office">Office</button>
+            </div>
+            <div id="furnitureGrid" class="furniture-grid"></div>
+            <div class="furniture-controls">
+                <label>Color:</label>
+                <input type="color" id="furnitureColor" value="#8B4513">
+                <button id="addFurnitureBtn" class="action-btn">➕ Add to Scene</button>
+            </div>
+        </div>
+
+        <!-- ===== REPAIR PANEL ===== -->
+        <div id="repairPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🔧 <span data-i18n="repairTool">Model Repair</span></h3>
+                <button class="close-btn" data-close="repairPanel">×</button>
+            </div>
+            <div class="repair-stats">
+                <div class="stat-row"><span>Vertices:</span><span id="vertexCount">0</span></div>
+                <div class="stat-row"><span>Faces:</span><span id="faceCount">0</span></div>
+            </div>
+            <div class="repair-actions">
+                <button class="repair-btn" data-action="fillHoles">🕳️ Fill Holes</button>
+                <button class="repair-btn" data-action="smooth">✨ Smooth</button>
+                <button class="repair-btn" data-action="simplify">📉 Simplify</button>
+                <button class="repair-btn" data-action="remesh">🔲 Remesh</button>
+                <button class="repair-btn" data-action="recalcNormals">🧭 Normals</button>
+                <button class="repair-btn" data-action="autoRepair">🤖 Auto Repair</button>
+            </div>
+            <div id="repairLog" class="repair-log"></div>
+        </div>
+
+        <!-- ===== VIDEO TOUR PANEL ===== -->
+        <div id="videoPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🎥 <span data-i18n="videoTour">Video Tour</span></h3>
+                <button class="close-btn" data-close="videoPanel">×</button>
+            </div>
+            <label>Style:
+                <select id="tourStyle">
+                    <option value="orbit">Orbit (360°)</option>
+                    <option value="flythrough">Fly-through</option>
+                    <option value="topdown">Top-down</option>
+                    <option value="cinematic">Cinematic</option>
+                </select>
+            </label>
+            <label>Duration (sec): <input type="number" id="tourDuration" value="10" min="5" max="60"></label>
+            <button id="startTourBtn" class="action-btn">🎬 <span data-i18n="startRecording">Start Recording</span></button>
+            <div id="tourProgress" class="hidden">
+                <div class="progress-bar"><div id="tourProgressFill"></div></div>
+                <div id="tourStatus">Recording...</div>
+            </div>
+        </div>
+
+        <!-- ===== EMAIL PANEL ===== -->
+        <div id="emailPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>📧 <span data-i18n="emailExport">Email Export</span></h3>
+                <button class="close-btn" data-close="emailPanel">×</button>
+            </div>
+            <input type="email" id="recipientEmail" placeholder="recipient@example.com">
+            <input type="text" id="emailSubject" placeholder="Subject" value="My 3D House Scan">
+            <textarea id="emailBody" placeholder="Message..."></textarea>
+            <button id="sendEmailBtn" class="action-btn">📧 <span data-i18n="sendEmail">Send Email</span></button>
+        </div>
+
+        <!-- ===== GAME PANEL ===== -->
+        <div id="gamePanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🎮 <span data-i18n="gameMode">Game Mode</span></h3>
+                <button class="close-btn" data-close="gamePanel">×</button>
+            </div>
+            <div class="game-info">
+                <div class="game-stat"><span>Score</span><span id="gameScoreDisplay">0</span></div>
+                <div class="game-stat"><span>Time</span><span id="gameTimeDisplay">60s</span></div>
+                <div class="game-stat"><span>Coins</span><span id="coinCount">0</span></div>
+            </div>
+            <button id="startGameBtn" class="action-btn">🎮 <span data-i18n="startGame">Start Game</span></button>
+            <button id="resetGameBtn" class="small-btn">🔄 Reset</button>
+            <div id="gameOverPanel" class="hidden">
+                <h3 data-i18n="gameOver">Game Over!</h3>
+                <div id="finalScore"></div>
+                <div id="highScore"></div>
+            </div>
+        </div>
+
+        <!-- ===== CHARACTER PANEL ===== -->
+        <div id="characterPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🎭 <span data-i18n="customizeChar">Character</span></h3>
+                <button class="close-btn" data-close="characterPanel">×</button>
+            </div>
+            <div class="char-part"><label>👤 Skin:</label><input type="color" id="skinColor" value="#FFDBB5"></div>
+            <div class="char-part"><label>👕 Shirt:</label><input type="color" id="shirtColor" value="#2196F3"></div>
+            <div class="char-part"><label>👖 Pants:</label><input type="color" id="pantsColor" value="#424242"></div>
+            <div class="char-part"><label>💇 Hair:</label><input type="color" id="hairColor" value="#3E2723"></div>
+            <div class="char-part"><label>👟 Shoes:</label><input type="color" id="shoeColor" value="#000000"></div>
+            <div class="char-presets">
+                <button class="char-preset" data-preset="casual">👕 Casual</button>
+                <button class="char-preset" data-preset="formal">👔 Formal</button>
+                <button class="char-preset" data-preset="sporty">🏃 Sporty</button>
+                <button class="char-preset" data-preset="gamer">🎮 Gamer</button>
+            </div>
+            <button id="applyCharBtn" class="action-btn">✓ Apply</button>
+        </div>
+
+        <!-- ===== LANGUAGE PANEL ===== -->
+        <div id="langPanel" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🌐 <span data-i18n="selectLang">Language</span></h3>
+                <button class="close-btn" data-close="langPanel">×</button>
+            </div>
+            <div class="lang-options">
+                <button class="lang-btn" data-lang="en">🇬🇧 English</button>
+                <button class="lang-btn" data-lang="kn">🇮🇳 ಕನ್ನಡ</button>
+                <button class="lang-btn" data-lang="hi">🇮🇳 हिंदी</button>
+            </div>
+        </div>
+
+        <!-- ===== FLOOR PLAN MODAL ===== -->
+        <div id="floorPlanModal" class="modal-panel hidden">
+            <div class="modal-header">
+                <h3>🏗️ <span data-i18n="floorPlan">Floor Plan</span></h3>
+                <button class="close-btn" data-close="floorPlanModal">×</button>
+            </div>
+            <canvas id="floorPlanCanvas" width="400" height="400"></canvas>
+            <button id="downloadFloorPlan" class="action-btn">💾 Download PNG</button>
+        </div>
+
+        <!-- ===== MUSIC PLAYER ===== -->
+        <div id="musicPlayer" class="music-player hidden">
+            <div class="music-info">
+                <span id="musicIcon">🎵</span>
+                <span id="musicTitle">Ambient</span>
+            </div>
+            <div class="music-controls">
+                <button id="musicPrev" class="music-btn">⏮️</button>
+                <button id="musicPlayPause" class="music-btn">▶️</button>
+                <button id="musicNext" class="music-btn">⏭️</button>
+                <input type="range" id="musicVolume" min="0" max="100" value="50">
+            </div>
+        </div>
+
+        <!-- ===== GAME HUD ===== -->
+        <div id="gameHUD" class="hidden">
+            <div class="hud-item"><span>🎮</span><span id="hudScore">0</span></div>
+            <div class="hud-item"><span>⏱️</span><span id="hudTime">60</span></div>
+            <button id="exitGameBtn" class="hud-btn">✖</button>
+        </div>
+
+        <!-- ===== ACHIEVEMENT NOTIFICATION ===== -->
+        <div id="achievementNotification" class="achievement-notif hidden">
+            <div class="notif-icon">🏆</div>
+            <div class="notif-content">
+                <div class="notif-title">Achievement Unlocked!</div>
+                <div class="notif-name" id="achievementName"></div>
+                <div class="notif-points" id="achievementPoints"></div>
+            </div>
         </div>
     </div>
 
+    <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script>
-        // Global variables
-        let scene, camera, renderer;
-        let videoStream;
-        let scanProgress = 0;
-        let currentStage = 0;
-        let coverageGrid = [];
-        let scanPoints = [];
-        let isScanning = false;
-        let isPaused = false;
-        
-        // Scanning stages
-        const scanningStages = [
-            { name: "Floor Scanning", instruction: "Scan the floor area by moving camera left to right", arrow: "right" },
-            { name: "Wall Scanning", instruction: "Scan walls by moving camera up and down", arrow: "up" },
-            { name: "Ceiling Scan", instruction: "Point camera upward to scan ceiling", arrow: "up" },
-            { name: "Corner Details", instruction: "Focus on corners and edges for complete coverage", arrow: "left" },
-            { name: "Final Pass", instruction: "Do a final sweep to ensure complete coverage", arrow: "right" }
-        ];
-        
-        // Initialize Three.js
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            
-            const canvas = document.getElementById('canvas3D');
-            renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setClearColor(0x000000, 0);
-            
-            // Lighting
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambientLight);
-            
-            // Initialize coverage grid
-            initializeCoverageGrid();
-            
-            animate();
-        }
-        
-        // Initialize coverage tracking grid
-        function initializeCoverageGrid() {
-            coverageGrid = [];
-            for (let i = 0; i < 10; i++) {
-                coverageGrid[i] = [];
-                for (let j = 0; j < 10; j++) {
-                    coverageGrid[i][j] = 0;
-                }
-            }
-        }
-        
-        // Start camera with guidance
-        async function startCamera() {
-            try {
-                videoStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        facingMode: 'environment',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
-                    } 
-                });
-                
-                const video = document.getElementById('videoFeed');
-                video.srcObject = videoStream;
-                
-                // Hide start screen
-                document.getElementById('startScreen').style.display = 'none';
-                
-                // Show scanning interface
-                setTimeout(() => {
-                    showScanningInterface();
-                }, 1000);
-                
-            } catch (err) {
-                console.error('Camera error:', err);
-                alert('Camera access required for 3D scanning. Please allow camera permission.');
-            }
-        }
-        
-        // Show scanning interface
-        function showScanningInterface() {
-            document.getElementById('scanGuide').style.display = 'block';
-            document.getElementById('progressPanel').style.display = 'block';
-            document.getElementById('instructionsPanel').style.display = 'block';
-            document.getElementById('controls').style.display = 'flex';
-            document.getElementById('coverageMap').style.display = 'block';
-            document.getElementById('qualityIndicator').style.display = 'block';
-            
-            isScanning = true;
-            currentStage = 0;
-            updateStage();
-            startScanningSimulation();
-        }
-        
-        // Update current stage
-        function updateStage() {
-            if (currentStage < scanningStages.length) {
-                const stage = scanningStages[currentStage];
-                document.getElementById('scanStage').textContent = `Stage ${currentStage + 1}: ${stage.name}`;
-                updateInstructions(stage.instruction);
-                showDirectionArrow(stage.arrow);
-            }
-        }
-        
-        // Update instructions
-        function updateInstructions(text) {
-            document.getElementById('currentInstruction').innerHTML = `
-                <div class="tip-box" style="font-size: 16px; margin: 10px 0;">
-                    📍 ${text}
-                </div>
-                <ol>
-                    <li>Keep camera steady</li>
-                    <li>Move slowly and smoothly</li>
-                    <li>Ensure 60% overlap between scans</li>
-                    <li>Cover all angles and corners</li>
-                </ol>
-            `;
-        }
-        
-        // Show direction arrow
-        function showDirectionArrow(direction) {
-            // Hide all arrows
-            document.querySelectorAll('.direction-arrow').forEach(arrow => {
-                arrow.style.opacity = '0.2';
-            });
-            
-            // Show current arrow
-            const arrowId = 'arrow' + direction.charAt(0).toUpperCase() + direction.slice(1);
-            const arrow = document.getElementById(arrowId);
-            if (arrow) {
-                arrow.style.opacity = '1';
-            }
-        }
-        
-        // Simulate scanning progress
-        function startScanningSimulation() {
-            const interval = setInterval(() => {
-                if (!isScanning || isPaused) return;
-                
-                // Simulate progress
-                scanProgress += 0.5;
-                
-                if (scanProgress >= 100) {
-                    scanProgress = 100;
-                    currentStage++;
-                    
-                    if (currentStage >= scanningStages.length) {
-                        clearInterval(interval);
-                        completeScanning();
-                        return;
-                    }
-                    
-                    scanProgress = 0;
-                    updateStage();
-                }
-                
-                updateProgress();
-                updateCoverageMap();
-                updateQualityIndicator();
-                
-            }, 100);
-        }
-        
-        // Update progress bar
-        function updateProgress() {
-            const totalProgress = ((currentStage * 20) + (scanProgress / 5));
-            document.getElementById('progressFill').style.width = totalProgress + '%';
-            document.getElementById('progressText').textContent = Math.round(totalProgress) + '% Complete';
-        }
-        
-        // Update coverage map
-        function updateCoverageMap() {
-            const canvas = document.getElementById('coverageCanvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = 150;
-            canvas.height = 150;
-            
-            // Clear canvas
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            ctx.fillRect(0, 0, 150, 150);
-            
-            // Draw grid
-            const cellSize = 15;
-            for (let i = 0; i < 10; i++) {
-                for (let j = 0; j < 10; j++) {
-                    const coverage = coverageGrid[i][j] || 0;
-                    const alpha = coverage / 100;
-                    ctx.fillStyle = `rgba(0, 255, 0, ${alpha})`;
-                    ctx.fillRect(j * cellSize, i * cellSize, cellSize - 1, cellSize - 1);
-                }
-            }
-            
-            // Update random grid cells to simulate scanning
-            const randomRow = Math.floor(Math.random() * 10);
-            const randomCol = Math.floor(Math.random() * 10);
-            coverageGrid[randomRow][randomCol] = Math.min(100, coverageGrid[randomRow][randomCol] + 10);
-        }
-        
-        // Update quality indicator
-        function updateQualityIndicator() {
-            const quality = Math.min(100, scanProgress + (currentStage * 20));
-            document.getElementById('qualityFill').style.height = quality + '%';
-            
-            let qualityText = 'Poor';
-            if (quality > 80) qualityText = 'Excellent';
-            else if (quality > 60) qualityText = 'Good';
-            else if (quality > 40) qualityText = 'Fair';
-            
-            document.getElementById('qualityText').textContent = qualityText;
-        }
-        
-        // Complete scanning
-        function completeScanning() {
-            document.getElementById('progressFill').style.width = '100%';
-            document.getElementById('progressText').textContent = '100% Complete';
-            document.getElementById('scanStage').textContent = '✅ Scanning Complete!';
-            
-            // Hide arrows
-            document.querySelectorAll('.direction-arrow').forEach(arrow => {
-                arrow.style.display = 'none';
-            });
-            
-            // Show completion message
-            setTimeout(() => {
-                alert(' Scanning Complete!\n\nYour 3D model is being generated.\nThis may take a few moments.');
-                generate3DModel();
-            }, 1000);
-        }
-        
-        // Generate 3D model (simulation)
-        function generate3DModel() {
-            // Create a simple 3D room model
-            create3DRoomModel();
-            
-            // Show character in the scanned room
-            createCharacter();
-        }
-        
-        // Create 3D room model
-        function create3DRoomModel() {
-            // Floor
-            const floorGeometry = new THREE.PlaneGeometry(10, 10);
-            const floorMaterial = new THREE.MeshPhongMaterial({ 
-                color: 0x8B4513,
-                side: THREE.DoubleSide 
-            });
-            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-            floor.rotation.x = -Math.PI / 2;
-            scene.add(floor);
-            
-            // Walls
-            const wallMaterial = new THREE.MeshPhongMaterial({ 
-                color: 0xF5F5DC,
-                transparent: true,
-                opacity: 0.5
-            });
-            
-            // Create 4 walls
-            const wallPositions = [
-                { pos: [0, 2.5, -5], rot: [0, 0, 0] },
-                { pos: [0, 2.5, 5], rot: [0, Math.PI, 0] },
-                { pos: [-5, 2.5, 0], rot: [0, Math.PI / 2, 0] },
-                { pos: [5, 2.5, 0], rot: [0, -Math.PI / 2, 0] }
-            ];
-            
-            wallPositions.forEach(wall => {
-                const wallMesh = new THREE.Mesh(
-                    new THREE.PlaneGeometry(10, 5),
-                    wallMaterial
-                );
-                wallMesh.position.set(...wall.pos);
-                wallMesh.rotation.set(...wall.rot);
-                scene.add(wallMesh);
-            });
-            
-            // Add furniture
-            addScannedFurniture();
-        }
-        
-        // Add furniture to scanned room
-        function addScannedFurniture() {
-            // Table
-            const tableGroup = new THREE.Group();
-            const tableTop = new THREE.Mesh(
-                new THREE.BoxGeometry(2, 0.1, 1),
-                new THREE.MeshPhongMaterial({ color: 0x8B4513 })
-            );
-            tableTop.position.y = 0.8;
-            tableGroup.add(tableTop);
-            
-            // Table legs
-            for (let i = 0; i < 4; i++) {
-                const leg = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.05, 0.05, 0.8),
-                    new THREE.MeshPhongMaterial({ color: 0x654321 })
-                );
-                leg.position.set(
-                    (i % 2 === 0 ? -0.9 : 0.9),
-                    0.4,
-                    (i < 2 ? -0.4 : 0.4)
-                );
-                tableGroup.add(leg);
-            }
-            tableGroup.position.set(0, 0, -2);
-            scene.add(tableGroup);
-            
-            // Chair
-            const chair = new THREE.Mesh(
-                new THREE.BoxGeometry(0.5, 0.8, 0.5),
-                new THREE.MeshPhongMaterial({ color: 0x4A4A4A })
-            );
-            chair.position.set(1, 0.4, 0);
-            scene.add(chair);
-        }
-        
-        // Create character
-        function createCharacter() {
-            const character = new THREE.Group();
-            
-            // Body
-            const body = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.3, 0.3, 1, 8),
-                new THREE.MeshPhongMaterial({ color: 0x2196F3 })
-            );
-            body.position.y = 0.5;
-            character.add(body);
-            
-            // Head
-            const head = new THREE.Mesh(
-                new THREE.SphereGeometry(0.3, 16, 16),
-                new THREE.MeshPhongMaterial({ color: 0xFFDBB5 })
-            );
-            head.position.y = 1.3;
-            character.add(head);
-            
-            character.position.set(0, 0, 2);
-            scene.add(character);
-            
-            // Set camera to view character
-            camera.position.set(0, 2, 6);
-            camera.lookAt(0, 1, 0);
-        }
-        
-        // Animation loop
-        function animate() {
-            requestAnimationFrame(animate);
-            
-            if (scene && renderer) {
-                renderer.render(scene, camera);
-            }
-        }
-        
-        // Control buttons
-        document.getElementById('pauseBtn').addEventListener('click', () => {
-            isPaused = !isPaused;
-            document.getElementById('pauseBtn').textContent = isPaused ? '▶️' : '⏸️';
-        });
-        
-        document.getElementById('retakeBtn').addEventListener('click', () => {
-            if (confirm('Do you want to retake the scan?')) {
-                scanProgress = 0;
-                currentStage = 0;
-                initializeCoverageGrid();
-                updateStage();
-            }
-        });
-        
-        document.getElementById('completeBtn').addEventListener('click', () => {
-            if (confirm('Complete scanning and generate 3D model?')) {
-                scanProgress = 100;
-                currentStage = scanningStages.length;
-                completeScanning();
-            }
-        });
-        
-        // Start button
-        document.getElementById('startBtn').addEventListener('click', () => {
-            init();
-            startCamera();
-        });
-        
-        // Window resize
-        window.addEventListener('resize', () => {
-            if (camera && renderer) {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            }
-        });
-        
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-            }
-        });
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/OBJExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
